@@ -236,6 +236,7 @@ matplotlib==3.10.1
     # via
     #   -r requirements.in
     #   mlflow
+    #   seaborn
 matplotlib-inline==0.1.7
     # via
     #   ipykernel
@@ -274,6 +275,7 @@ numpy==2.2.4
     #   pandas
     #   scikit-learn
     #   scipy
+    #   seaborn
     #   xgboost
 opentelemetry-api==1.31.1
     # via
@@ -300,6 +302,7 @@ pandas==2.2.3
     # via
     #   -r requirements.in
     #   mlflow
+    #   seaborn
 pandocfilters==1.5.1
     # via nbconvert
 parso==0.8.4
@@ -419,6 +422,8 @@ scipy==1.15.2
     #   mlflow
     #   scikit-learn
     #   xgboost
+seaborn==0.13.2
+    # via -r requirements.in
 send2trash==1.8.3
     # via jupyter-server
 setuptools==78.1.0

@@ -147,10 +147,10 @@ print(results)
 
 # get only distinct media titles
 ## sort the data so that values of 1 show up first
-df = df.sort(by=["label", "media_title"], descending=[True, False])
-
-## grab unique values starting from the top
-df = df.unique(subset=['media_title'])
+df = (df
+	.sort(by=["label", "media_title"], descending=[True, False])
+	.unique(subset=['media_title'])
+)
 
 # ensure all positive labels are preserved: ~300
 label_counts = df.group_by('label').agg(pl.len())

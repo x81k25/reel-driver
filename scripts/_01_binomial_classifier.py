@@ -29,7 +29,7 @@ mlflow.set_experiment("reel_driver")
 # ------------------------------------------------------------------------------
 
 # read in training data
-df = pd.read_parquet('../data/binomial_classifier_training_data.parquet')
+df = pd.read_parquet('./data/binomial_classifier_training_data.parquet')
 df.set_index('hash', inplace=True)
 
 # drop media_title during training
@@ -77,7 +77,7 @@ param_grid = {
 # Start MLflow run
 with mlflow.start_run(run_name="xgboost_grid_search"):
 	# training notes
-	mlflow.set_tag("notes", "Model training data needs cleaning")
+	mlflow.set_tag("notes", "started cleaning inaccurately rejected titles")
 
 	# Log data info
 	mlflow.log_param("train_size", X_train.shape[0])
@@ -151,7 +151,7 @@ with mlflow.start_run(run_name="xgboost_grid_search"):
 	}, index=y.index)
 
 	# Save results
-	results_path = "../data/binomial_classifier_results.parquet"
+	results_path = "./data/binomial_classifier_results.parquet"
 	results_df.to_parquet(results_path)
 
 # ------------------------------------------------------------------------------

@@ -10,5 +10,5 @@ pyarrow
 python-dotenv
 psycopg2
 scikit-learn
+seaborn
 xgboost
-
