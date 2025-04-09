@@ -1,0 +1,16 @@
+# dependancies
+boto3
+dotenv
+matplotlib
+mlflow
+numpy
+pandas
+polars
+psycopg2
+pyarrow
+scikit-learn
+xgboost
+
+# jupyter dependancies
+ipykernel
+jupyter
