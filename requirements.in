@@ -1,0 +1,14 @@
+boto3
+ipykernel
+jupyter
+matplotlib
+mlflow
+numpy
+pandas
+polars
+pyarrow
+python-dotenv
+psycopg2
+scikit-learn
+xgboost
+
