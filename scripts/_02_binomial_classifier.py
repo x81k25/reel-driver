@@ -77,7 +77,7 @@ param_grid = {
 # Start MLflow run
 with mlflow.start_run(run_name="xgboost_grid_search"):
 	# training notes
-	mlflow.set_tag("notes", "started cleaning inaccurately rejected titles")
+	mlflow.set_tag("notes", "cleaned false positives")
 
 	# Log data info
 	mlflow.log_param("train_size", X_train.shape[0])
