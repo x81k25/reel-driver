@@ -1,14 +1,18 @@
-# Automatic Transmission Algorithm
+# reel-driver
 
-A personal media curation algorithm trained on my personally labeled data.
+personal media curation algorithm trained on my personally labeled data
 
-## Overview
+## overview
 
-This repository contains a machine learning solution that determines which media to add to my personal library. The project uses XGBoost to train a binary classifier that predicts whether I would want to keep specific media based on features including ratings (IMDB, Rotten Tomatoes, Metascore), release year, genre, and language.
+Ever opened app after app on you SmartTV and you were greeted by a top of row of squares of content you mostly weren't interested in? Well, if so, then this may be the repo you've been looking for. I've been repeatedly disappointed by content curation on the big streamers. Either they promote content I'm not interested in, I have to dig for content I do want, or it may display content to me only to discover after clicking on it that I need another subscription or a purchase to access it.
 
-Currently focused on movies, with plans to extend to TV shows and other media types.
+The intention of this model is to create a model that ingests personalize training data in order to create a model that can run inferences on new media items and tell you whether or not you'd be into it! The data samples I have in the `/data` folder contain the training data and analysis results based off of my own preferences.   
 
-## Project Structure
+Currently I am working on tuning the model for local development in order to prove the model's viability. Eventually I will integrate this model into my media microservice ecosystem and run it on my locally deployed k3s cluster. When the model prototype is done, I am going to flesh out this service as a FaspAPI accessible microservice. 
+
+Currently the datasets I am using filter for only movies, but it theoretically should be able to handle other media types as well, perhaps with same slight modifications based on what metadata is avialable for training of that media type. 
+
+## project structure
 
 ```
 automatic-transmission-algo/
@@ -30,15 +34,15 @@ automatic-transmission-algo/
 └── requirements.txt       # Generated dependencies with pinned versions
 ```
 
-## Setup
+## setup
 
-### Prerequisites
+### prerequisites
 
 - Python 3.12+
 - PostgreSQL database with appropriate schema setup
 - MLflow server (for model tracking)
 
-### Environment Variables
+### environment variables
 
 Create a `.env` file in the root directory with the following variables:
 
@@ -52,7 +56,7 @@ MLFLOW_HOST=your_mlflow_host
 MLFLOW_PORT=your_mlflow_port
 ```
 
-### Installation
+### installation
 
 This project uses `uv` for dependency management:
 
@@ -69,7 +73,25 @@ source .venv/bin/activate
 uv pip install -r requirements.txt
 ```
 
-## Workflow
+## modeling
+
+### problem formulation 
+
+For the initial version of this model I am going to go with a binomial classifier, largely because that is the type of model that will best fit my current model training data. As an output of the services deployed via my [automatic-transmission](https://github.com/x81k25/automatic-transmission) repository, I have multiple status flags attached to several thousand media records that can be used a a true/false label for media selection. At the end of the day, I am making a binary decision, whether or not to include the model in my media library.
+
+It would however be interesting to potentially try a multi-class classification problem. When discussing with my wife, we have considered labeling the data as one of these possibilities `["would-not-watch", "would watch", "woud watch multiple times"]` or somthing analogous. This likely would increase decrease the probability of getting false negatives on movies that we would enjoy the most, by giving them thier own distinct class. A multi-class classifier would also be fun, because while a majority of the purpose of this project is to build a microservice that will go into the rest of my media ecosystem, it is also really fun to try and algorithmically break down my own preferences; and a multi-class classifier would allow me to do so in an even more in-depth way.
+
+Proceeding down that same trail, a regression model could work here as well. That would require even more of a concerted effor to label the data. I am currently sitting at over 3k movies, so each of them would need to be manually numerically labeled in order to capture my prefences. As a person that is acutely aware of the inherent flaws of human-decision making, it would pain me somewhat to utilize a continuous numeric label that was entirely subjective. 
+
+### algorithm selection
+
+
+
+### evaluation criteria
+
+
+
+## workflow
 
 The project follows this workflow:
 
@@ -94,14 +116,14 @@ The project follows this workflow:
 
 The `_00_error_correction.py` script is available for ad hoc error correction when needed.
 
-## Integration
+## integration
 
 This project will eventually be converted into a microservice to work alongside [automatic-transmission](https://github.com/x81k25/automatic-transmission) as an ML component in the pipeline for downloading media.
 
-## MLflow Tracking
+## MLflow tracking
 
 This project uses MLflow to track model experiments. For information on setting up and using MLflow, refer to the [official MLflow documentation](https://mlflow.org/docs/latest/index.html).
 
-## License
+## license
 
 MIT License

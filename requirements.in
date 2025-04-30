@@ -11,4 +11,5 @@ python-dotenv
 psycopg2
 scikit-learn
 seaborn
+statsmodels
 xgboost
