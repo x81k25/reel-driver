@@ -1,4 +1,4 @@
-import src as training
+import src.training as training
 
 def main():
 	training.extract_media()

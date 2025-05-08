@@ -1,15 +1,18 @@
 # third-party imports
 import polars as pl
 
+# custom/local imports
+from src.data_models import MediaDataFrame
+
 # ------------------------------------------------------------------------------
 # read in data
 # ------------------------------------------------------------------------------
 
-# read in data
-media = pl.read_parquet("./data/media.parquet")
+# read in data as MediaDataFrame to standardize
+media = MediaDataFrame(pl.read_parquet("./data/media.parquet"))
 
 # filter for movies
-df = media.filter(pl.col('media_type') == 'movie')
+df = media.df.filter(pl.col('media_type') == 'movie')
 
 # select only relevant fields
 df = df.select([
