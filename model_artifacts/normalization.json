@@ -1,0 +1,22 @@
+{
+  "metascore": {
+    "min": 4,
+    "max": 100
+  },
+  "rt_score": {
+    "min": 0,
+    "max": 100
+  },
+  "imdb_rating": {
+    "min": 10.0,
+    "max": 94.0
+  },
+  "imdb_votes": {
+    "min": 5,
+    "max": 3031101
+  },
+  "release_year": {
+    "min": 1912,
+    "max": 2025
+  }
+}

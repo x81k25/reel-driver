@@ -1,0 +1,1 @@
+from .xgb_inference import XGBMediaPredictor

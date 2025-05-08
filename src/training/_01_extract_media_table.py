@@ -1,14 +1,12 @@
 # standard library imports
-import concurrent.futures
 import os
 
 # third-party imports
 from dotenv import load_dotenv
-import polars as pl
 import psycopg2
 
 # custom/local imports
-from src.data_models import MediaDataFrame
+from src.data_models.media_data_frame import MediaDataFrame
 
 
 def extract_media():
