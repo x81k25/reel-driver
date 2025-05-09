@@ -9,7 +9,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 
 # custom/local imports
-from app.routers import prediction
 from app.services.predictor import XGBMediaPredictor
 from app.core.config import settings
 
@@ -40,9 +39,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to load model: {e}")
         raise RuntimeError(f"Could not load model: {e}")
-    
+
     yield  # This is where the app runs
-    
+
     # Shutdown logic
     logger.info("Shutting down API")
 
@@ -70,8 +69,11 @@ async def general_exception_handler(request, exc):
         content={"message": "Internal server error"},
     )
 
+# Import routers
+from app.routers import prediction
+
 # Include routers
-app.include_router(prediction.router, prefix="/api", tags=["prediction"])
+app.include_router(prediction.get_router(predictor), prefix="/api", tags=["prediction"])
 
 # Health check endpoint
 @app.get("/health", tags=["health"])
