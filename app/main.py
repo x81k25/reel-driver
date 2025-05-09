@@ -17,18 +17,7 @@ from app.core.config import settings
 load_dotenv()
 
 # Configure uvicorn access logs
-uvicorn_logger = logging.getLogger("uvicorn.access")
-uvicorn_logger.setLevel(logging.INFO)
-
-# Create a custom logger with a unique name
-logger = logging.getLogger("reel_driver")
-# Ensure your messages appear
-logger.setLevel(logging.INFO)
-# Add handler if it doesn't have one
-if not logger.handlers:
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter('%(levelname)s:     %(message)s'))
-    logger.addHandler(handler)
+logger = logging.getLogger("uvicorn.error")
 
 # Initialize predictor as a global variable
 predictor = None
@@ -59,13 +48,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-@app.middleware("http")
-async def log_requests(request, call_next):
-    logger.info(f"Request: {request.method} {request.url}")
-    response = await call_next(request)
-    logger.info(f"Response status: {response.status_code}")
-    return response
-
 # Add exception handlers
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
@@ -86,7 +68,6 @@ async def general_exception_handler(request, exc):
 @app.get("/health", tags=["health"])
 async def health_check():
     """Health check endpoint."""
-    logger.info("receiving request for health check")
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     return {"status": "healthy"}

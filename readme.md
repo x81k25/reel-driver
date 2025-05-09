@@ -143,6 +143,8 @@ pip install fastapi uvicorn
 2. Start the API server:
 ```bash
 uvicorn app.main:app --reload
+uvicorn app.main:app --reload --log-level=debug
+uvicorn app.main:app --reload --log-level=debug --log-format="%(levelname)s: %(message)s"
 ```
 
 3. Test the endpoints:
@@ -251,9 +253,18 @@ Invoke-RestMethod -Uri http://localhost:8000/api/predict_batch -Method Post -Bod
 4. Access the interactive API documentation at http://localhost:8000/docs
 
 5. To stop the server when finished:
-   ```bash
-   # Press Ctrl+C in the terminal running the server
-   ```
+```bash
+# Press Ctrl+C in the terminal running the server
+```
+
+6. Kill any running instances that weren't terminated properly
+```bash
+pkill -9 python
+```
+```powershell
+Get-Process -Name python | Stop-Process -Force
+```
+
 
 ## license
 
