@@ -268,10 +268,10 @@ Get-Process -Name python | Stop-Process -Force
 **budilng image**
 ```bash
 # Regular build
-docker build -t reel-driver-image -f app/Dockerfile.api .
+docker build -t reel-driver-image -f app/dockerfile .
 
 # Force rebuild without cache
-docker build --no-cache -t reel-driver-image -f app/Dockerfile.api .
+docker build --no-cache -t reel-driver-image -f app/dockerfile .
 ```
 
 **running the container**
@@ -284,22 +284,31 @@ docker run -d -p 8000:8000 --name reel-driver-container --env-file app/.env reel
 
 # Stop the container
 docker stop reel-driver-container
+
+# remove container
+sudo docker rm reel-driver-container
+
+# delete image
+docker rmi reel-driver-image
+
+# delete all images
+docker rmi $(docker images -q) -f
 ```
 
 **with docker compose**
 ```bash
 # Build and start services
-docker compose -f app/docker-compose.yml up
+docker compose -f app/docker-compose.yaml up
 
 # Build with no cache and start
-docker compose -f app/docker-compose.yml build --no-cache
-docker compose -f app/docker-compose.yml up
+docker compose -f app/docker-compose.yaml build --no-cache
+docker compose -f app/docker-compose.yaml up
 
 # Run in background
-docker compose -f app/docker-compose.yml up -d
+docker compose -f app/docker-compose.yaml up -d
 
 # Stop services
-docker compose -f app/docker-compose.yml down
+docker compose -f app/docker-compose.yaml down
 ```
 
 **troubleshooting**
