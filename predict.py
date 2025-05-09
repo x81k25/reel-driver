@@ -2,7 +2,7 @@
 import logging
 
 # custom/local imports
-from src.data_models.media_prediction_input import MediaPredictionInput
+from app.models.media_prediction_input import MediaPredictionInput
 from src.inference import XGBMediaPredictor
 
 # log config

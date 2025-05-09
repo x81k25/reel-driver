@@ -6,11 +6,10 @@ from typing import List, Union, Dict, Any
 
 # third party imports
 import pandas as pd
-import polars as pl
 import xgboost as xgb
 
 # custom/local imports
-from src.data_models.media_prediction_input import MediaPredictionInput
+from app.models.media_prediction_input import MediaPredictionInput
 
 
 class XGBMediaPredictor:
@@ -78,7 +77,6 @@ class XGBMediaPredictor:
         """
         import logging
         import polars as pl
-        import pandas as pd
 
         # Convert input to dict if it's a Pydantic model
         if isinstance(media_input, MediaPredictionInput):

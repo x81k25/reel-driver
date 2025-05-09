@@ -71,6 +71,9 @@ source .venv/bin/activate
 
 # Install dependencies using uv
 uv pip install -r requirements.txt
+
+# regenerate requirements.txt upon requirements alteration
+uv pip compile requirements.in -o requirements.txt
 ```
 
 ## modeling
@@ -124,6 +127,84 @@ This project will eventually be converted into a microservice to work alongside 
 
 This project uses MLflow to track model experiments. For information on setting up and using MLflow, refer to the [official MLflow documentation](https://mlflow.org/docs/latest/index.html).
 
+
+## FAST-API service
+
+### Testing the API Locally
+
+To test the Reel Driver API locally before containerization:
+
+1. Ensure Install required dependencies:
+   ```bash
+   pip install fastapi uvicorn
+   ```
+
+2. Start the API server:
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+
+3. Test the endpoints:
+
+   **Health check:**
+   ```bash
+   curl http://localhost:8000/health
+   ```
+
+   **Single prediction:**
+   ```bash
+   curl -X POST http://localhost:8000/api/predict \
+     -H "Content-Type: application/json" \
+     -d '{
+       "hash": "test123",
+       "release_year": 2010,
+       "genre": ["Drama", "Comedy"],
+       "language": ["en"],
+       "metascore": 75,
+       "rt_score": 85,
+       "imdb_rating": 7.5,
+       "imdb_votes": 10000
+     }'
+   ```
+
+   **Batch prediction:**
+   ```bash
+   curl -X POST http://localhost:8000/api/predict_batch \
+     -H "Content-Type: application/json" \
+     -d '{
+       "items": [
+         {
+           "hash": "test123",
+           "release_year": 2010,
+           "genre": ["Drama", "Comedy"],
+           "language": ["en"],
+           "metascore": 75,
+           "rt_score": 85,
+           "imdb_rating": 7.5,
+           "imdb_votes": 10000
+         },
+         {
+           "hash": "test456",
+           "release_year": 2020,
+           "genre": ["Horror", "Thriller"],
+           "language": ["en"],
+           "metascore": 45,
+           "rt_score": 30,
+           "imdb_rating": 4.8,
+           "imdb_votes": 5000
+         }
+       ]
+     }'
+   ```
+
+4. Access the interactive API documentation at http://localhost:8000/docs
+
+5. To stop the server when finished:
+   ```bash
+   # Press Ctrl+C in the terminal running the server
+   ```
+
 ## license
 
 MIT License
+
