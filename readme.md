@@ -143,8 +143,6 @@ pip install fastapi uvicorn
 2. Start the API server:
 ```bash
 uvicorn app.main:app --reload
-uvicorn app.main:app --reload --log-level=debug
-uvicorn app.main:app --reload --log-level=debug --log-format="%(levelname)s: %(message)s"
 ```
 
 3. Test the endpoints:
@@ -263,6 +261,57 @@ pkill -9 python
 ```
 ```powershell
 Get-Process -Name python | Stop-Process -Force
+```
+
+### Building and running in docker locally
+
+**budilng image**
+```bash
+# Regular build
+docker build -t reel-driver-image -f app/Dockerfile.api .
+
+# Force rebuild without cache
+docker build --no-cache -t reel-driver-image -f app/Dockerfile.api .
+```
+
+**running the container**
+```bash
+# Run container in foreground
+docker run -p 8000:8000 --name reel-driver-container --env-file app/.env reel-driver-image
+
+# Run container in background
+docker run -d -p 8000:8000 --name reel-driver-container --env-file app/.env reel-driver-image
+
+# Stop the container
+docker stop reel-driver-container
+```
+
+**with docker compose**
+```bash
+# Build and start services
+docker compose -f app/docker-compose.yml up
+
+# Build with no cache and start
+docker compose -f app/docker-compose.yml build --no-cache
+docker compose -f app/docker-compose.yml up
+
+# Run in background
+docker compose -f app/docker-compose.yml up -d
+
+# Stop services
+docker compose -f app/docker-compose.yml down
+```
+
+**troubleshooting**
+```bash
+# View logs
+docker logs reel-driver-container
+
+# Shell into container
+docker exec -it reel-driver-container bash
+
+# Check container status
+docker ps -a | grep reel-driver-container
 ```
 
 

@@ -49,6 +49,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.api.env
 
 # Windows
 Thumbs.db

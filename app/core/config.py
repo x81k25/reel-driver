@@ -16,25 +16,8 @@ class Settings(BaseSettings):
     # Logging Configuration
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")
 
-    # Database Configuration
-    PG_DB: Optional[str] = None
-    PG_USER: Optional[str] = None
-    PG_PASS: Optional[str] = None
-    PG_HOST: Optional[str] = None
-    PG_PORT: Optional[str] = None
-    PG_SCHEMA: Optional[str] = None
-
-    # MLflow Configuration
-    MLFLOW_HOST: Optional[str] = None
-    MLFLOW_PORT: Optional[str] = None
-
-    # AWS Configuration
-    AWS_ACCESS_KEY_ID: Optional[str] = None
-    AWS_SECRET_ACCESS_KEY: Optional[str] = None
-    MLFLOW_S3_ENDPOINT_URL: Optional[str] = None
-
     class Config:
-        env_file = ".env"
+        env_file = "./app/.env"
         case_sensitive = True
 
 # Create settings instance
