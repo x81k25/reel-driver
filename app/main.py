@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
+import uvicorn.logging
 
 # custom/local imports
 from app.services.predictor import XGBMediaPredictor
@@ -15,14 +16,19 @@ from app.core.config import settings
 # Load environment variables
 load_dotenv()
 
-# Configure logging
-logging.basicConfig(
-    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO")),
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
+# Configure uvicorn access logs
+uvicorn_logger = logging.getLogger("uvicorn.access")
+uvicorn_logger.setLevel(logging.INFO)
 
-logger = logging.getLogger(__name__)
+# Create a custom logger with a unique name
+logger = logging.getLogger("reel_driver")
+# Ensure your messages appear
+logger.setLevel(logging.INFO)
+# Add handler if it doesn't have one
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('%(levelname)s:     %(message)s'))
+    logger.addHandler(handler)
 
 # Initialize predictor as a global variable
 predictor = None
@@ -53,6 +59,13 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+@app.middleware("http")
+async def log_requests(request, call_next):
+    logger.info(f"Request: {request.method} {request.url}")
+    response = await call_next(request)
+    logger.info(f"Response status: {response.status_code}")
+    return response
+
 # Add exception handlers
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
@@ -69,16 +82,11 @@ async def general_exception_handler(request, exc):
         content={"message": "Internal server error"},
     )
 
-# Import routers
-from app.routers import prediction
-
-# Include routers
-app.include_router(prediction.get_router(predictor), prefix="/api", tags=["prediction"])
-
 # Health check endpoint
 @app.get("/health", tags=["health"])
 async def health_check():
     """Health check endpoint."""
+    logger.info("receiving request for health check")
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     return {"status": "healthy"}
@@ -92,6 +100,12 @@ async def root():
         "docs": "/docs",
         "health": "/health"
     }
+
+# Import routers at the end to avoid circular imports
+from app.routers import prediction
+
+# Include routers - only once
+app.include_router(prediction.get_router(predictor), prefix="/api", tags=["prediction"])
 
 if __name__ == "__main__":
     import uvicorn

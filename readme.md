@@ -135,67 +135,118 @@ This project uses MLflow to track model experiments. For information on setting 
 To test the Reel Driver API locally before containerization:
 
 1. Ensure Install required dependencies:
-   ```bash
-   pip install fastapi uvicorn
-   ```
+
+```bash
+pip install fastapi uvicorn
+```
 
 2. Start the API server:
-   ```bash
-   uvicorn app.main:app --reload
-   ```
+```bash
+uvicorn app.main:app --reload
+```
 
 3. Test the endpoints:
 
-   **Health check:**
-   ```bash
-   curl http://localhost:8000/health
-   ```
+**Health check:**
 
-   **Single prediction:**
-   ```bash
-   curl -X POST http://localhost:8000/api/predict \
-     -H "Content-Type: application/json" \
-     -d '{
-       "hash": "test123",
-       "release_year": 2010,
-       "genre": ["Drama", "Comedy"],
-       "language": ["en"],
-       "metascore": 75,
-       "rt_score": 85,
-       "imdb_rating": 7.5,
-       "imdb_votes": 10000
-     }'
-   ```
+```bash
+curl http://localhost:8000/health
+```
+```powershell
+Invoke-RestMethod -Uri http://localhost:8000/health
+```
 
-   **Batch prediction:**
-   ```bash
-   curl -X POST http://localhost:8000/api/predict_batch \
-     -H "Content-Type: application/json" \
-     -d '{
-       "items": [
-         {
-           "hash": "test123",
-           "release_year": 2010,
-           "genre": ["Drama", "Comedy"],
-           "language": ["en"],
-           "metascore": 75,
-           "rt_score": 85,
-           "imdb_rating": 7.5,
-           "imdb_votes": 10000
-         },
-         {
-           "hash": "test456",
-           "release_year": 2020,
-           "genre": ["Horror", "Thriller"],
-           "language": ["en"],
-           "metascore": 45,
-           "rt_score": 30,
-           "imdb_rating": 4.8,
-           "imdb_votes": 5000
-         }
-       ]
-     }'
-   ```
+**Single prediction:**
+
+```bash
+curl -X POST http://localhost:8000/api/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "hash": "test123",
+    "release_year": 2010,
+    "genre": ["Drama", "Comedy"],
+    "language": ["en"],
+    "metascore": 75,
+    "rt_score": 85,
+    "imdb_rating": 7.5,
+    "imdb_votes": 10000
+  }'
+```
+```powershell
+$body = @{
+  hash = "test123"
+  release_year = 2010
+  genre = @("Drama", "Comedy")
+  language = @("en")
+  metascore = 75
+  rt_score = 85
+  imdb_rating = 7.5
+  imdb_votes = 10000
+}
+$json = ConvertTo-Json $body
+Invoke-RestMethod -Uri http://localhost:8000/api/predict -Method Post -Body $json -ContentType "application/json"
+```
+
+**Batch prediction:**
+
+```bash
+curl -X POST http://localhost:8000/api/predict_batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "items": [
+      {
+        "hash": "test123",
+        "release_year": 2010,
+        "genre": ["Drama", "Comedy"],
+        "language": ["en"],
+        "metascore": 75,
+        "rt_score": 85,
+        "imdb_rating": 7.5,
+        "imdb_votes": 10000
+      },
+      {
+        "hash": "test456",
+        "release_year": 2020,
+        "genre": ["Horror", "Thriller"],
+        "language": ["en"],
+        "metascore": 45,
+        "rt_score": 30,
+        "imdb_rating": 4.8,
+        "imdb_votes": 5000
+      }
+    ]
+  }'
+```
+```powershell
+$item1 = @{
+  hash = "test123"
+  release_year = 2010
+  genre = @("Drama", "Comedy")
+  language = @("en")
+  metascore = 75
+  rt_score = 85
+  imdb_rating = 7.5
+  imdb_votes = 10000
+}
+
+$item2 = @{
+  hash = "test456"
+  release_year = 2020
+  genre = @("Horror", "Thriller")
+  language = @("en")
+  metascore = 45
+  rt_score = 30
+  imdb_rating = 4.8
+  imdb_votes = 5000
+}
+
+$batch = @{
+  items = @($item1, $item2)
+}
+
+$json = ConvertTo-Json $batch -Depth 3
+Invoke-RestMethod -Uri http://localhost:8000/api/predict_batch -Method Post -Body $json -ContentType "application/json"
+```
 
 4. Access the interactive API documentation at http://localhost:8000/docs
 
