@@ -1,8 +1,8 @@
 services:
   api:
     build:
-      context: .
-      dockerfile: dockerfile
+      context: ..
+      dockerfile: ./app/dockerfile
     image: reel-driver-image
     container_name: reel-driver-container
     ports:

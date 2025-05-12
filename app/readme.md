@@ -186,25 +186,31 @@ docker run -p 8000:8000 --name reel-driver-container --env-file app/.env reel-dr
 
 # Run container in background
 docker run -d -p 8000:8000 --name reel-driver-container --env-file app/.env reel-driver-image
-
-# Stop the container
-docker stop reel-driver-container
 ```
 
 **With Docker Compose**
 ```bash
 # Build and start services
-docker compose -f app/docker-compose.yml up
+docker compose -f app/docker-compose.yaml up
 
 # Build with no cache and start
-docker compose -f app/docker-compose.yml build --no-cache
-docker compose -f app/docker-compose.yml up
+docker compose -f app/docker-compose.yaml build --no-cache
+docker compose -f app/docker-compose.yaml up
 
 # Run in background
-docker compose -f app/docker-compose.yml up -d
+docker compose -f app/docker-compose.yaml up -d
 
 # Stop services
-docker compose -f app/docker-compose.yml down
+docker compose -f app/docker-compose.yaml down
+```
+
+**container clean-up**
+```bash
+# remove container
+docker rm reel-driver-container
+
+# remove image
+docker image rmi reel-driver-image
 ```
 
 **Troubleshooting**
