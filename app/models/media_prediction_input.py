@@ -53,22 +53,22 @@ class MediaPredictionInput(BaseModel):
     @field_validator('metascore')
     @classmethod
     def check_metascore_range(cls, v: Optional[int]) -> Optional[int]:
-        if v is not None and (v < 0 or v >= 100):
+        if v is not None and (v < 0 or v > 100):
             raise ValueError('metascore must be between 0 and 100')
         return v
 
     @field_validator('rt_score')
     @classmethod
     def check_rt_score_range(cls, v: Optional[int]) -> Optional[int]:
-        if v is not None and (v < 0 or v >= 100):
+        if v is not None and (v < 0 or v > 100):
             raise ValueError('rt_score must be between 0 and 100')
         return v
 
     @field_validator('imdb_rating')
     @classmethod
     def check_imdb_rating_range(cls, v: Optional[float]) -> Optional[float]:
-        if v is not None and (v < 0 or v >= 100):
-            raise ValueError('imdb_rating must be between 0 and 10')
+        if v is not None and (v < 0 or v > 100):
+            raise ValueError('imdb_rating must be between 0 and 100')
         return v
 
     @field_validator('imdb_votes')
