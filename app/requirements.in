@@ -7,3 +7,4 @@ xgboost>=3.0.0
 pandas>=2.0.0
 polars>=1.0.0
 pyarrow>=19.0.0
+scikit-learn
