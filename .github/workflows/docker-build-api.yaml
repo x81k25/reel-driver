@@ -66,24 +66,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=${{ env.ENV_NAME }}
-            type=raw,value=${{ env.ENV_NAME }}-${{ github.sha }}
-            type=raw,value=latest,enable=${{ env.ENV_NAME == 'prod' }}
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./app/dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.ENV_NAME }}
+            ${{ env.ENV_NAME == 'prod' && format('{0}/{1}:latest', env.REGISTRY, env.IMAGE_NAME) || '' }}
           build-args: |
             ENVIRONMENT=${{ env.ENV_NAME }}
             MODEL_PATH=${{ vars.MODEL_PATH }}
