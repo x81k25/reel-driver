@@ -2,7 +2,7 @@ name: Build and Push API Docker Image
 
 on:
   push:
-    branches: [ main, dev, staging ]
+    branches: [ main, dev, stg ]
   # Allow manual triggering
   workflow_dispatch:
     inputs:
@@ -13,7 +13,7 @@ on:
         type: choice
         options:
           - dev
-          - staging
+          - stg
           - prod
 
 env:
@@ -30,7 +30,7 @@ jobs:
     environment:
       ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 
           github.ref_name == 'main' && 'prod' || 
-          github.ref_name == 'staging' && 'staging' || 
+          github.ref_name == 'stg' && 'stg' || 
           'dev' }}
 
     permissions:
@@ -52,8 +52,8 @@ jobs:
             echo "ENV_NAME=${{ github.event.inputs.environment }}" >> $GITHUB_ENV
           elif [ "${{ github.ref_name }}" = "main" ]; then
             echo "ENV_NAME=prod" >> $GITHUB_ENV
-          elif [ "${{ github.ref_name }}" = "staging" ]; then
-            echo "ENV_NAME=staging" >> $GITHUB_ENV
+          elif [ "${{ github.ref_name }}" = "stg" ]; then
+            echo "ENV_NAME=stg" >> $GITHUB_ENV
           else
             echo "ENV_NAME=dev" >> $GITHUB_ENV
           fi
