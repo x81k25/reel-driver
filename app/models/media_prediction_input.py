@@ -67,8 +67,8 @@ class MediaPredictionInput(BaseModel):
     @field_validator('imdb_rating')
     @classmethod
     def check_imdb_rating_range(cls, v: Optional[float]) -> Optional[float]:
-        if v is not None and (v < 0 or v > 10):
-            raise ValueError('imdb_rating must be between 0 and 10')
+        if v is not None and (v < 0 or v > 100):
+            raise ValueError('imdb_rating must be between 0 and 100')
         return v
 
     @field_validator('imdb_votes')
@@ -94,7 +94,7 @@ class MediaPredictionInput(BaseModel):
                 "language": ["en"],
                 "rt_score": 67,
                 "metascore": None,
-                "imdb_rating": 5.7,
+                "imdb_rating": 55.7,
                 "imdb_votes": 4815
             }
         }
