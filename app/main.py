@@ -5,7 +5,7 @@ import os
 # third party imports
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, APIRouter
 from fastapi.responses import JSONResponse
 import uvicorn.logging
 
@@ -46,8 +46,25 @@ app = FastAPI(
     description="Personal media curation API for predicting media preferences",
     version="0.1.0",
     lifespan=lifespan,
-    root_path="/reel-driver"
+    docs_url=None,  # Disable default docs
+    redoc_url=None  # Disable default redoc
 )
+
+# Create a root router with the prefix
+root_router = APIRouter(prefix="/reel-driver")
+
+# Then, after including all the routers, add this:
+from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
+from fastapi.openapi.utils import get_openapi
+
+@root_router.get("/openapi.json", include_in_schema=False)
+async def get_openapi_json():
+    return get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes
+    )
 
 # Add exception handlers
 @app.exception_handler(HTTPException)
@@ -66,7 +83,7 @@ async def general_exception_handler(request, exc):
     )
 
 # Health check endpoint
-@app.get("/health", tags=["health"])
+@root_router.get("/health", tags=["health"])
 async def health_check():
     """Health check endpoint."""
     if predictor is None:
@@ -74,7 +91,7 @@ async def health_check():
     return {"status": "healthy"}
 
 # Root endpoint
-@app.get("/", tags=["root"])
+@root_router.get("/", tags=["root"])
 async def root():
     """API root endpoint."""
     return {
@@ -83,11 +100,29 @@ async def root():
         "health": "/health"
     }
 
+# Mount docs at the prefixed path
+@root_router.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    return get_swagger_ui_html(
+        openapi_url="/reel-driver/openapi.json",
+        title=app.title + " - Swagger UI"
+    )
+
+@root_router.get("/redoc", include_in_schema=False)
+async def custom_redoc_html():
+    return get_redoc_html(
+        openapi_url="/reel-driver/openapi.json",
+        title=app.title + " - ReDoc"
+    )
+
+# Include the root router in the app
+app.include_router(root_router)
+
 # Import routers at the end to avoid circular imports
 from app.routers import prediction
 
 # Include routers - only once
-app.include_router(prediction.get_router(predictor), prefix="/api", tags=["prediction"])
+app.include_router(prediction.get_router(predictor), prefix="/reel-driver/api", tags=["prediction"])
 
 if __name__ == "__main__":
     import uvicorn
