@@ -45,7 +45,8 @@ app = FastAPI(
     title="Reel Driver API",
     description="Personal media curation API for predicting media preferences",
     version="0.1.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    root_path="/reel-driver"
 )
 
 # Add exception handlers
