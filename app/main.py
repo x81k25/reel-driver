@@ -46,10 +46,25 @@ app = FastAPI(
     description="Personal media curation API for predicting media preferences",
     version="0.1.0",
     lifespan=lifespan,
+    docs_url=None,  # Disable default docs
+    redoc_url=None  # Disable default redoc
 )
 
 # Create a root router with the prefix
 root_router = APIRouter(prefix="/reel-driver")
+
+# Then, after including all the routers, add this:
+from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
+from fastapi.openapi.utils import get_openapi
+
+@root_router.get("/openapi.json", include_in_schema=False)
+async def get_openapi_json():
+    return get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes
+    )
 
 # Add exception handlers
 @app.exception_handler(HTTPException)
@@ -84,6 +99,21 @@ async def root():
         "docs": "/docs",
         "health": "/health"
     }
+
+# Mount docs at the prefixed path
+@root_router.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    return get_swagger_ui_html(
+        openapi_url="/reel-driver/openapi.json",
+        title=app.title + " - Swagger UI"
+    )
+
+@root_router.get("/redoc", include_in_schema=False)
+async def custom_redoc_html():
+    return get_redoc_html(
+        openapi_url="/reel-driver/openapi.json",
+        title=app.title + " - ReDoc"
+    )
 
 # Include the root router in the app
 app.include_router(root_router)
