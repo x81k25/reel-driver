@@ -96,3 +96,4 @@ yarn-error.log*
 
 # files used only for develpment purposes
 .dev/
+.error_handling/
