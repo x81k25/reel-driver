@@ -4,61 +4,30 @@ import json
 # third-party imports
 import polars as pl
 
-
 def xgb_prep():
 	# ------------------------------------------------------------------------------
 	# transform data for xgboost ingestion
 	# ------------------------------------------------------------------------------
 
 	# read in data
-	media = pl.read_parquet("./data/media.parquet")
+	training = pl.read_parquet("./data/01_training.parquet")
 
-	# filter by medias only for now
-	df = media.filter(pl.col('media_type') == 'movie')
-
-	# select only relevant fields
-	df = df.select([
-		'hash',
-		'media_title',
-		'rejection_status',
-		'release_year',
-		'genre',
-		'language',
-		'metascore',
-		'rt_score',
-		'imdb_rating',
-		'imdb_votes'
-	])
-
-	# convert rejection status to label
-	df = df.with_columns(
-		label = pl.when(pl.col('rejection_status') == 'accepted')
-			.then(True)
-			.when(pl.col('rejection_status') == 'override')
-			.then(True)
-			.otherwise(False)
-		)
-
-	# label counts
-	label_counts = df.group_by('label').agg(pl.len())
-	print(label_counts)
-
-	# get count of how many times the same media titles shows up in that data
-	results = df.group_by('media_title').agg(
-		pl.len().alias('len')).sort('len', descending=True)
-
-	print(results)
-
-	# get only distinct media titles
-	## sort the data so that values of 1 show up first
-	df = (df
-		.sort(by=["label", "media_title"], descending=[True, False])
-		.unique(subset=['media_title'])
+	# filter to only applicable data
+	df = (
+		training.filter(pl.col('media_type') == 'movie')
+		.select([
+			'imdb_id',
+			'label',
+			'media_title',
+			'release_year',
+			'genre',
+			'language',
+			'metascore',
+			'rt_score',
+			'imdb_rating',
+			'imdb_votes'
+		])
 	)
-
-	# ensure all positive labels are preserved: ~300
-	label_counts = df.group_by('label').agg(pl.len())
-	print(label_counts)
 
 	# save normalization data for use with model predictions
 	normalization = {
@@ -123,7 +92,6 @@ def xgb_prep():
 
 	# select training data only
 	df = df.drop([
-		'rejection_status',
 		'release_year',
 		'genre',
 		'language',
@@ -147,7 +115,7 @@ def xgb_prep():
 	]).describe())
 
 	# write data file
-	df.write_parquet('./data/binomial_classifier_training_data.parquet')
+	df.write_parquet('./data/02_binomial_classifier_training_data.parquet')
 
 	# ------------------------------------------------------------------------------
 	# end of etl.py

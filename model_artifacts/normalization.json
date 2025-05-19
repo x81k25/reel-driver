@@ -9,11 +9,11 @@
   },
   "imdb_rating": {
     "min": 10.0,
-    "max": 94.0
+    "max": 95.0
   },
   "imdb_votes": {
     "min": 5,
-    "max": 3031101
+    "max": 3042120
   },
   "release_year": {
     "min": 1912,

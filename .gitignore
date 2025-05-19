@@ -50,6 +50,7 @@ ENV/
 env.bak/
 venv.bak/
 .api.env
+.environments.yaml
 
 # Windows
 Thumbs.db
