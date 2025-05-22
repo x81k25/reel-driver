@@ -50,6 +50,7 @@ ENV/
 env.bak/
 venv.bak/
 .api.env
+.environments.yaml
 
 # Windows
 Thumbs.db
@@ -92,3 +93,7 @@ yarn-error.log*
 *.h5
 *.joblib
 *.model
+
+# files used only for develpment purposes
+.dev/
+.error_handling/

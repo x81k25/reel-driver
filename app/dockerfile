@@ -1,14 +1,16 @@
 FROM python:3.12
 
-WORKDIR /app
+WORKDIR /reel-driver
 
 # Copy requirements and install dependencies
 COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# make directories to be used for file improts
 # Copy application code
-COPY app/ .
-COPY model_artifacts/ /app/model_artifacts/
+COPY ./app/ ./app
+# Copy model artifacts
+COPY ./model_artifacts ./model_artifacts
 
 # Expose the port
 EXPOSE 8000
@@ -17,4 +19,4 @@ EXPOSE 8000
 ENV PYTHONUNBUFFERED=1
 
 # Run the application with reload enabled
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

@@ -9,83 +9,57 @@ from typing import List, Dict, Any, Optional, ClassVar, Type
 
 pl.enable_string_cache()
 
-class PipelineStatus(str, Enum):
-    INGESTED = 'ingested'
-    PAUSED = 'paused'
-    PARSED = 'parsed'
-    METADATA_COLLECTED = 'metadata_collected'
-    REJECTED = 'rejected'
-    QUEUED = 'queued'
-    DOWNLOADING = 'downloading'
-    DOWNLOADED = 'downloaded'
-    TRANSFERRED = 'transferred'
-    COMPLETE = 'complete'
-
-
-class RejectionStatus(str, Enum):
-    UNFILTERED = 'unfiltered'
-    ACCEPTED = 'accepted'
-    FAILED = 'failed'
-    OVERRIDE = 'override'
-
-
 class MediaType(str, Enum):
     MOVIE = 'movie'
     TV_SHOW = 'tv_show'
     TV_SEASON = 'tv_season'
 
-
-class RssSource(str, Enum):
-    YTS = 'yts.mx'
-    EPISODE_FEED = 'episodefeed.com'
-
-
 # ------------------------------------------------------------------------------
-# unified media dataframe class
+# training dataframe class
 # ------------------------------------------------------------------------------
 
-class MediaDataFrame:
-    """Unified rigid polars DataFrame for all media types matching SQL schemas."""
+class TrainingDataFrame:
+    """Unified rigid polars DataFrame for training data matching SQL schemas."""
 
     # Complete schema with all possible fields
     schema = {
-        # identifier column
-        'hash': pl.Utf8,
-        # media information
-        'media_type': pl.Categorical,
-        'media_title': pl.Utf8,
-        'season': pl.Int64,
-        'episode': pl.Int64,
-        'release_year': pl.Int64,
-        # pipeline status information
-        'pipeline_status': pl.Categorical,
-        'error_status': pl.Boolean,
-        'error_condition': pl.Utf8,
-        'rejection_status': pl.Categorical,
-        'rejection_reason': pl.Utf8,
-        # path information
-        'parent_path': pl.Utf8,
-        'target_path': pl.Utf8,
-        # download information
-        'original_title': pl.Utf8,
-        'original_path': pl.Utf8,
-        'original_link': pl.Utf8,
-        'rss_source': pl.Categorical,
-        'uploader': pl.Utf8,
-        # metadata pertaining to the media item
+        # identifier columns
         'imdb_id': pl.Utf8,
         'tmdb_id': pl.Int64,
+        # label columns
+        'label': pl.Categorical,
+        # media identifying information
+        'media_type': pl.Categorical,
+        'media_title': pl.Utf8,
+        'season': pl.Int16,
+        'episode': pl.Int16,
+        'release_year': pl.Int16,
+        # metadata pertaining to the media item
+        # - quantitative fields
+        'budget': pl.Int64,
+        'revenue': pl.Int64,
+        'runtime': pl.Int64,
+        # - country and production information
+        'origin_country': pl.List(pl.Utf8),
+        'production_companies': pl.List(pl.Utf8),
+        'production_countries': pl.List(pl.Utf8),
+        'production_status': pl.Utf8,
+        # - language information
+        'original_language': pl.Utf8,
+        'spoken_languages': pl.List(pl.Utf8),
+        # - other string fields
         'genre': pl.List(pl.Utf8),
-        'language': pl.List(pl.Utf8),
-        'rt_score': pl.Int64,
-        'metascore': pl.Int64,
+        'original_media_title': pl.Utf8,
+        # - long string fields
+        'tagline': pl.Utf8,
+        'overview': pl.Utf8,
+        # - ratings info
+        'tmdb_rating': pl.Float64,
+        'tmdb_votes': pl.Int64,
+        'rt_score': pl.Int16,
+        'metascore': pl.Int16,
         'imdb_rating': pl.Float64,
         'imdb_votes': pl.Int64,
-        # metadata pertaining to the video file
-        'resolution': pl.Utf8,
-        'video_codec': pl.Utf8,
-        'upload_type': pl.Utf8,
-        'audio_codec': pl.Utf8,
         # timestamps
         'created_at': pl.Datetime,
         'updated_at': pl.Datetime,
@@ -93,14 +67,11 @@ class MediaDataFrame:
 
     # Common required columns
     required_columns = [
-        'hash',
-        'original_title',
+        'imdb_id',
         'media_type',
-        'pipeline_status',
-        'error_status',
-        'rejection_status'
+        'media_title',
+        'release_year'
     ]
-
 
     def __init__(self, data: Optional[Any] = None):
         """
@@ -122,8 +93,7 @@ class MediaDataFrame:
                 self._validate_and_prepare(self._df)
             except Exception as e:
                 raise ValueError(
-                    f"Could not create MediaDataFrame from data: {e}")
-
+                    f"Could not create TrainingDataFrame from data: {e}")
 
     def _validate_and_prepare(self, df: pl.DataFrame) -> None:
         """
@@ -190,18 +160,12 @@ class MediaDataFrame:
         # Set the underlying DataFrame
         self._df = df
 
-
     def update(self, df: pl.DataFrame):
         """Update internal DataFrame directly."""
         self._validate_and_prepare(df)
         self._df = df
 
-
     @property
     def df(self) -> pl.DataFrame:
         """Access the underlying polars DataFrame."""
         return self._df
-
-# ------------------------------------------------------------------------------
-# end of data_models.py
-# ------------------------------------------------------------------------------
