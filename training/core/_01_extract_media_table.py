@@ -5,9 +5,8 @@ import os
 from dotenv import load_dotenv
 import psycopg2
 
-# custom/local imports
-from src.data_models.media_data_frame import MediaDataFrame
-
+# custom/internal imports
+from data_models.training_data_frame import TrainingDataFrame
 
 def extract_media():
 
@@ -16,10 +15,6 @@ def extract_media():
 	# ------------------------------------------------------------------------------
 
 	load_dotenv()
-
-	# ------------------------------------------------------------------------------
-	# extract data from database
-	# ------------------------------------------------------------------------------
 
 	# create sql connection
 	con_params = {
@@ -31,11 +26,10 @@ def extract_media():
 	}
 
 	con = psycopg2.connect(**con_params)
-	cursor = con.cursor()
 
 	with con.cursor() as cursor:
 		# Execute the query
-		cursor.execute("SELECT * FROM atp.media ORDER BY updated_at")
+		cursor.execute("SELECT * FROM atp.training ORDER BY updated_at")
 
 		# Get column names
 		columns = [desc[0] for desc in cursor.description]
@@ -47,14 +41,13 @@ def extract_media():
 		data = [dict(zip(columns, row)) for row in rows]
 
 	# Convert to polars DataFrame and wrap in MediaDataFrame
-	media = MediaDataFrame(data)
+	training = TrainingDataFrame(data)
 
 	# Close the cursor and connection
-	cursor.close()
 	con.close()
 
 	# save raw media data
-	media.df.write_parquet('./data/media.parquet')
+	training.df.write_parquet('./data/01_training.parquet')
 
 # ------------------------------------------------------------------------------
 # end of extract_media_table.py
