@@ -1,4 +1,4 @@
-# internal libary imports
+# internal library imports
 import os
 
 # third-party imports
@@ -11,9 +11,9 @@ import xgboost as xgb
 
 def xgb_build():
 
-	# ------------------------------------------------------------------------------
-	# build and train model
-	# ------------------------------------------------------------------------------
+	# ------------------------------------------------------------------------
+	# setup and params
+	# ------------------------------------------------------------------------
 
 	load_dotenv()
 
@@ -30,16 +30,21 @@ def xgb_build():
 	# ------------------------------------------------------------------------------
 
 	# read in training data
-	df = pd.read_parquet('./data/binomial_classifier_training_data.parquet')
-	df.set_index('hash', inplace=True)
+	df = pd.read_parquet('./data/02_binomial_classifier_training_data.parquet')
+	df.set_index('imdb_id', inplace=True)
 
 	# drop media_title during training
 	df.drop('media_title', axis=1, inplace=True)
 
-	# convert values to numpy for xgboost ingestion
+	# features/label split
 	X = df.drop('label', axis=1)
 
 	y = df['label']
+
+	# convert categoricals
+	categorical_cols = ['production_status', 'original_language']
+	for col in categorical_cols:
+		X[col] = X[col].astype('category')
 
 	# train/test split
 	X_train_val, X_test, y_train_val, y_test = train_test_split(
@@ -60,21 +65,6 @@ def xgb_build():
 		random_state=42,
 	)
 
-	model = xgb.XGBClassifier(
-		objective='binary:logistic',
-		n_estimators=100
-	)
-
-	# Define parameter grid
-	param_grid = {
-	   'max_depth': [3, 5, 7],
-	   'learning_rate': [0.01, 0.1, 0.2],
-	   'n_estimators': [50, 100, 200],
-	   'subsample': [0.8, 1.0],
-	   'colsample_bytree': [0.8, 1.0],
-	   'gamma': [0, 0.1, 0.2]
-	}
-
 	# Start MLflow run
 	with mlflow.start_run(run_name="xgboost_grid_search"):
 		# training notes
@@ -87,8 +77,24 @@ def xgb_build():
 		mlflow.log_param("test_size", X_test.shape[0])
 		mlflow.log_param("features", list(X.columns))
 
+		# define model
+		model = xgb.XGBClassifier(
+			objective='binary:logistic'
+		)
+
+		# Define parameter grid
+		param_grid = {
+			'max_depth': [3, 5, 7],
+			'learning_rate': [0.01, 0.1, 0.2],
+			'n_estimators': [50, 100, 200],
+			'subsample': [0.8, 1.0],
+			'colsample_bytree': [0.8, 1.0],
+			'gamma': [0, 0.1, 0.2],
+			'scale_pos_weight': [1, 5, 9, 15],
+			'enable_categorical': [True]
+		}
+
 		# Grid search setup
-		model = xgb.XGBClassifier(objective='binary:logistic', n_estimators=100)
 		grid_search = GridSearchCV(
 			estimator=model,
 			param_grid=param_grid,
@@ -153,7 +159,7 @@ def xgb_build():
 		}, index=y.index)
 
 		# Save results
-		results_path = "./data/binomial_classifier_results.parquet"
+		results_path = "./data/03_binomial_classifier_results.parquet"
 		results_df.to_parquet(results_path)
 
 		# save model
@@ -162,5 +168,5 @@ def xgb_build():
 		print(f"model saved to {model_path}")
 
 	# ------------------------------------------------------------------------------
-	# end of binomial_classifier.py
+	# end of _03_xgb_binomial_classifier_build_model.py
 	# ------------------------------------------------------------------------------

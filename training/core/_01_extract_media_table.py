@@ -26,7 +26,6 @@ def extract_media():
 	}
 
 	con = psycopg2.connect(**con_params)
-	cursor = con.cursor()
 
 	with con.cursor() as cursor:
 		# Execute the query
@@ -45,7 +44,6 @@ def extract_media():
 	training = TrainingDataFrame(data)
 
 	# Close the cursor and connection
-	cursor.close()
 	con.close()
 
 	# save raw media data
