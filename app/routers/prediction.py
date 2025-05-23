@@ -26,8 +26,8 @@ def get_router(predictor):
         try:
             result = pred.predict(media_input)
             return PredictionResponse(
-                hash=result["hash"],
-                would_watch=result["would_watch"],
+                imdb_id=result["imdb_id"],
+                prediction=result["prediction"],
                 probability=result["probability"]
             )
         except Exception as e:

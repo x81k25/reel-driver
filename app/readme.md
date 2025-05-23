@@ -55,94 +55,172 @@ uvicorn app.main:app --reload
 **Health check:**
 
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:8000/reel-driver/health
 ```
 ```powershell
-Invoke-RestMethod -Uri http://localhost:8000/health
+Invoke-RestMethod -Uri http://localhost:8000/reel-driver/health
+```
+
+*Sample Response:*
+```json
+{
+  "status": "healthy",
+  "model_features": 245,
+  "normalization_fields": 10
+}
 ```
 
 **Single prediction:**
 
 ```bash
-curl -X POST http://localhost:8000/api/predict \
+curl -X POST http://localhost:8000/reel-driver/api/predict \
   -H "Content-Type: application/json" \
   -d '{
-    "hash": "test123",
-    "release_year": 2010,
-    "genre": ["Drama", "Comedy"],
-    "language": ["en"],
-    "metascore": 75,
-    "rt_score": 85,
-    "imdb_rating": 7.5,
-    "imdb_votes": 10000
+    "imdb_id": "tt0111161",
+    "release_year": 1994,
+    "genre": ["Drama", "Crime"],
+    "spoken_languages": ["en"],
+    "original_language": "en",
+    "origin_country": ["US"],
+    "production_countries": ["US"],
+    "production_status": "Released",
+    "metascore": 82,
+    "rt_score": 91,
+    "imdb_rating": 92.0,
+    "imdb_votes": 2800000,
+    "tmdb_rating": 8.7,
+    "tmdb_votes": 26000,
+    "budget": 25000000,
+    "revenue": 16000000,
+    "runtime": 142,
+    "tagline": "Fear can hold you prisoner. Hope can set you free.",
+    "overview": "Framed in the 1940s for the double murder of his wife and her lover..."
   }'
 ```
 ```powershell
 $body = @{
-  hash = "test123"
-  release_year = 2010
-  genre = @("Drama", "Comedy")
-  language = @("en")
-  metascore = 75
-  rt_score = 85
-  imdb_rating = 7.5
-  imdb_votes = 10000
+  imdb_id = "tt0111161"
+  release_year = 1994
+  genre = @("Drama", "Crime")
+  spoken_languages = @("en")
+  original_language = "en"
+  origin_country = @("US")
+  production_countries = @("US")
+  production_status = "Released"
+  metascore = 82
+  rt_score = 91
+  imdb_rating = 92.0
+  imdb_votes = 2800000
+  tmdb_rating = 8.7
+  tmdb_votes = 26000
+  budget = 25000000
+  revenue = 16000000
+  runtime = 142
+  tagline = "Fear can hold you prisoner. Hope can set you free."
+  overview = "Framed in the 1940s for the double murder of his wife and her lover..."
 }
 $json = ConvertTo-Json $body
-Invoke-RestMethod -Uri http://localhost:8000/api/predict -Method Post -Body $json -ContentType "application/json"
+Invoke-RestMethod -Uri http://localhost:8000/reel-driver/api/predict -Method Post -Body $json -ContentType "application/json"
+```
+
+*Sample Response:*
+```json
+{
+  "imdb_id": "tt0111161",
+  "prediction": true,
+  "probability": 0.89
+}
 ```
 
 **Batch prediction:**
 
 ```bash
-curl -X POST http://localhost:8000/api/predict_batch \
+curl -X POST http://localhost:8000/reel-driver/api/predict_batch \
   -H "Content-Type: application/json" \
   -d '{
     "items": [
       {
-        "hash": "test123",
-        "release_year": 2010,
-        "genre": ["Drama", "Comedy"],
-        "language": ["en"],
-        "metascore": 75,
-        "rt_score": 85,
-        "imdb_rating": 7.5,
-        "imdb_votes": 10000
+        "imdb_id": "tt0111161",
+        "release_year": 1994,
+        "genre": ["Drama", "Crime"],
+        "spoken_languages": ["en"],
+        "original_language": "en",
+        "origin_country": ["US"],
+        "production_countries": ["US"],
+        "production_status": "Released",
+        "metascore": 82,
+        "rt_score": 91,
+        "imdb_rating": 92.0,
+        "imdb_votes": 2800000,
+        "tmdb_rating": 8.7,
+        "tmdb_votes": 26000,
+        "budget": 25000000,
+        "revenue": 16000000,
+        "runtime": 142,
       },
       {
-        "hash": "test456",
-        "release_year": 2020,
-        "genre": ["Horror", "Thriller"],
-        "language": ["en"],
-        "metascore": 45,
-        "rt_score": 30,
-        "imdb_rating": 4.8,
-        "imdb_votes": 5000
+        "imdb_id": "tt0468569",
+        "release_year": 2008,
+        "genre": ["Action", "Crime", "Drama"],
+        "spoken_languages": ["en"],
+        "original_language": "en",
+        "origin_country": ["US"],
+        "production_countries": ["US"],
+        "production_status": "Released",
+        "metascore": 84,
+        "rt_score": 94,
+        "imdb_rating": 90.0,
+        "imdb_votes": 2700000,
+        "tmdb_rating": 8.5,
+        "tmdb_votes": 32000,
+        "budget": 185000000,
+        "revenue": 1005000000,
+        "runtime": 152,
       }
     ]
   }'
 ```
 ```powershell
 $item1 = @{
-  hash = "test123"
-  release_year = 2010
-  genre = @("Drama", "Comedy")
-  language = @("en")
-  metascore = 75
-  rt_score = 85
-  imdb_rating = 7.5
-  imdb_votes = 10000
+  imdb_id = "tt0111161"
+  release_year = 1994
+  genre = @("Drama", "Crime")
+  spoken_languages = @("en")
+  original_language = "en"
+  origin_country = @("US")
+  production_countries = @("US")
+  production_status = "Released"
+  metascore = 82
+  rt_score = 91
+  imdb_rating = 92.0
+  imdb_votes = 2800000
+  tmdb_rating = 8.7
+  tmdb_votes = 26000
+  budget = 25000000
+  revenue = 16000000
+  runtime = 142
+  original_media_title = "The Shawshank Redemption"
 }
 
 $item2 = @{
-  hash = "test456"
-  release_year = 2020
-  genre = @("Horror", "Thriller")
-  language = @("en")
-  metascore = 45
-  rt_score = 30
-  imdb_rating = 4.8
-  imdb_votes = 5000
+  imdb_id = "tt0468569"
+  release_year = 2008
+  genre = @("Action", "Crime", "Drama")
+  spoken_languages = @("en")
+  original_language = "en"
+  origin_country = @("US")
+  production_countries = @("US")
+  production_status = "Released"
+  metascore = 84
+  rt_score = 94
+  imdb_rating = 90.0
+  imdb_votes = 2700000
+  tmdb_rating = 8.5
+  tmdb_votes = 32000
+  budget = 185000000
+  revenue = 1005000000
+  runtime = 152
+  original_media_title = "The Dark Knight"
 }
 
 $batch = @{
@@ -150,10 +228,28 @@ $batch = @{
 }
 
 $json = ConvertTo-Json $batch -Depth 3
-Invoke-RestMethod -Uri http://localhost:8000/api/predict_batch -Method Post -Body $json -ContentType "application/json"
+Invoke-RestMethod -Uri http://localhost:8000/reel-driver/api/predict_batch -Method Post -Body $json -ContentType "application/json"
 ```
 
-4. Access the interactive API documentation at http://localhost:8000/docs
+*Sample Response:*
+```json
+{
+  "results": [
+    {
+      "imdb_id": "tt0111161",
+      "prediction": true,
+      "probability": 0.89
+    },
+    {
+      "imdb_id": "tt0468569",
+      "prediction": true,
+      "probability": 0.95
+    }
+  ]
+}
+```
+
+4. Access the interactive API documentation at http://localhost:8000/reel-driver/docs
 
 5. To stop the server when finished:
 ```bash

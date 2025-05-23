@@ -5,8 +5,8 @@ from app.models.media_prediction_input import MediaPredictionInput
 
 class PredictionResponse(BaseModel):
     """Response model for a single prediction."""
-    hash: str
-    would_watch: bool
+    imdb_id: str
+    prediction: bool
     probability: float
 
 class BatchPredictionRequest(BaseModel):

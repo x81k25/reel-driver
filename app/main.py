@@ -27,10 +27,11 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     global predictor
     # Startup logic
-    logger.info("Loading XGBoost model...")
+    logger.info("Loading XGBoost model and normalization artifacts...")
     try:
         predictor = XGBMediaPredictor(artifacts_path=settings.MODEL_PATH)
-        logger.info("Model loaded successfully")
+        logger.info("Model and artifacts loaded successfully")
+        logger.info(f"Model expects {len(predictor.feature_names)} features")
     except Exception as e:
         logger.error(f"Failed to load model: {e}")
         raise RuntimeError(f"Could not load model: {e}")
@@ -38,12 +39,12 @@ async def lifespan(app: FastAPI):
     yield  # This is where the app runs
 
     # Shutdown logic
-    logger.info("Shutting down API")
+    logger.info("Shutting down Reel Driver API")
 
 # Initialize FastAPI app with lifespan
 app = FastAPI(
     title="Reel Driver API",
-    description="Personal media curation API for predicting media preferences",
+    description="Personal media curation API for predicting media preferences using IMDB metadata",
     version="0.1.0",
     lifespan=lifespan,
     docs_url=None,  # Disable default docs
@@ -69,6 +70,7 @@ async def get_openapi_json():
 # Add exception handlers
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
+    logger.warning(f"HTTP exception: {exc.status_code} - {exc.detail}")
     return JSONResponse(
         status_code=exc.status_code,
         content={"message": exc.detail},
@@ -88,7 +90,22 @@ async def health_check():
     """Health check endpoint."""
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
-    return {"status": "healthy"}
+
+    # Additional health checks for model artifacts
+    try:
+        if not hasattr(predictor, 'feature_names') or not predictor.feature_names:
+            raise HTTPException(status_code=503, detail="Model features not properly loaded")
+        if not hasattr(predictor, 'normalization') or not predictor.normalization:
+            raise HTTPException(status_code=503, detail="Normalization parameters not loaded")
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        raise HTTPException(status_code=503, detail="Model health check failed")
+
+    return {
+        "status": "healthy",
+        "model_features": len(predictor.feature_names),
+        "normalization_fields": len(predictor.normalization)
+    }
 
 # Root endpoint
 @root_router.get("/", tags=["root"])
@@ -96,8 +113,14 @@ async def root():
     """API root endpoint."""
     return {
         "message": "Welcome to Reel Driver API",
-        "docs": "/docs",
-        "health": "/health"
+        "description": "Personal media curation API for predicting media preferences",
+        "version": "0.1.0",
+        "docs": "/reel-driver/docs",
+        "health": "/reel-driver/health",
+        "endpoints": {
+            "single_prediction": "/reel-driver/api/predict",
+            "batch_prediction": "/reel-driver/api/predict_batch"
+        }
     }
 
 # Mount docs at the prefixed path
