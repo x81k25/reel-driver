@@ -28,7 +28,7 @@ class XGBMediaPredictor:
         :type artifacts_path: str
         """
         # Load the trained XGBoost model
-        self.model = xgb.XGBClassifier()
+        self.model = xgb.XGBClassifier(enable_categorical=True)
         self.model.load_model(os.path.join(artifacts_path, "xgb_model.json"))
 
         # Extract feature names from the model
@@ -239,6 +239,11 @@ class XGBMediaPredictor:
         # Preprocess the input
         features_df = self.preprocess(media_input)
         logging.debug(f"Prediction features shape: {features_df.shape}")
+
+        # Convert numeric columns to proper dtypes
+        for col in features_df.columns:
+            if col not in ['production_status', 'original_language']:
+                features_df[col] = pd.to_numeric(features_df[col], errors='coerce').fillna(0.0)
 
         # Make prediction
         prediction = bool(self.model.predict(features_df)[0])

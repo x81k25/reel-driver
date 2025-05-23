@@ -136,11 +136,8 @@ async def custom_redoc_html():
 # Include the root router in the app
 app.include_router(root_router)
 
-# Import routers at the end to avoid circular imports
-from app.routers import prediction
-
-# Include routers - only once
-app.include_router(prediction.get_router(predictor), prefix="/reel-driver/api", tags=["prediction"])
+# REMOVED: Duplicate router inclusion that was causing the issue
+# The prediction router is now only included in the lifespan function
 
 if __name__ == "__main__":
     import uvicorn
