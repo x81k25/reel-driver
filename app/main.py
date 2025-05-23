@@ -24,22 +24,17 @@ predictor = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan context manager for startup and shutdown events."""
     global predictor
-    # Startup logic
-    logger.info("Loading XGBoost model and normalization artifacts...")
-    try:
-        predictor = XGBMediaPredictor(artifacts_path=settings.MODEL_PATH)
-        logger.info("Model and artifacts loaded successfully")
-        logger.info(f"Model expects {len(predictor.feature_names)} features")
-    except Exception as e:
-        logger.error(f"Failed to load model: {e}")
-        raise RuntimeError(f"Could not load model: {e}")
+    # Load model first
+    predictor = XGBMediaPredictor(artifacts_path=settings.MODEL_PATH)
+    logger.info("Model loaded successfully")
 
-    yield  # This is where the app runs
+    # Include router AFTER predictor is loaded
+    from app.routers import prediction
+    app.include_router(prediction.get_router(predictor), prefix="/reel-driver/api", tags=["prediction"])
 
-    # Shutdown logic
-    logger.info("Shutting down Reel Driver API")
+    yield
+    logger.info("Shutting down")
 
 # Initialize FastAPI app with lifespan
 app = FastAPI(

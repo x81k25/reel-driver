@@ -199,7 +199,6 @@ $item1 = @{
   budget = 25000000
   revenue = 16000000
   runtime = 142
-  original_media_title = "The Shawshank Redemption"
 }
 
 $item2 = @{
@@ -220,7 +219,6 @@ $item2 = @{
   budget = 185000000
   revenue = 1005000000
   runtime = 152
-  original_media_title = "The Dark Knight"
 }
 
 $batch = @{
