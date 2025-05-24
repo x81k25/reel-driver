@@ -65,26 +65,31 @@ def xgb_prep():
     df = (
         training.filter(pl.col('media_type') == 'movie')
         .select([
+            # identifiers
             'imdb_id',
-            'label',
             'media_title',
+            # label
+            'label',
+            # continuous
             'release_year',
             'budget',
             'revenue',
             'runtime',
-            'origin_country',
-            'production_companies',
-            'production_countries',
-            'production_status',
-            'original_language',
-            'spoken_languages',
-            'genre',
             'tmdb_rating',
             'tmdb_votes',
             'rt_score',
             'metascore',
             'imdb_rating',
-            'imdb_votes'
+            'imdb_votes'            
+            # categorical
+            'origin_country',
+            'production_status',
+            # categorical lists
+            'production_companies',
+            'production_countries',
+            'original_language',
+            'spoken_languages',
+            'genre',
         ])
     )
 
@@ -97,6 +102,22 @@ def xgb_prep():
 
     # save normalization data for use with model predictions
     normalization = {
+        "release_year": {
+            "min": df.select(pl.col('release_year').drop_nulls().min())[0, 0],
+            "max": df.select(pl.col('release_year').drop_nulls().max())[0, 0]
+        },
+        "budget": {
+            "min": df.select(pl.col('budget').drop_nulls().min())[0, 0],
+            "max": df.select(pl.col('budget').drop_nulls().max())[0, 0]
+        },
+        "revenue": {
+            "min": df.select(pl.col('revenue').drop_nulls().min())[0, 0],
+            "max": df.select(pl.col('revenue').drop_nulls().max())[0, 0]
+        },
+        "runtime": {
+            "min": df.select(pl.col('runtime').drop_nulls().min())[0, 0],
+            "max": df.select(pl.col('runtime').drop_nulls().max())[0, 0]
+        },
         "tmdb_rating": {
             "min": df.select(pl.col('tmdb_rating').drop_nulls().min())[0, 0],
             "max": df.select(pl.col('tmdb_rating').drop_nulls().max())[0, 0]
@@ -120,10 +141,6 @@ def xgb_prep():
         "imdb_votes": {
             "min": df.select(pl.col('imdb_votes').drop_nulls().min())[0, 0],
             "max": df.select(pl.col('imdb_votes').drop_nulls().max())[0, 0]
-        },
-        "release_year": {
-            "min": df.select(pl.col('release_year').drop_nulls().min())[0, 0],
-            "max": df.select(pl.col('release_year').drop_nulls().max())[0, 0]
         }
     }
 
@@ -131,7 +148,15 @@ def xgb_prep():
         json.dump(normalization, file, indent=2)
 
     # normalize numeric fields and drop source columns
-    df = df.with_columns(
+    df =df.with_columns(
+        release_year_norm = ((pl.col('release_year') - pl.col('release_year').min()) /
+            (pl.col('release_year').max() - pl.col('release_year').min())),
+        budget_norm = ((pl.col('budget') - pl.col('budget').min()) /
+            (pl.col('budget').max() - pl.col('budget').min())),
+        revenue_norm = ((pl.col('revenue') - pl.col('revenue').min()) /
+            (pl.col('revenue').max() - pl.col('revenue').min())),
+        runtime = ((pl.col('runtime') - pl.col('runtime').min()) /
+            (pl.col('runtime').max() - pl.col('runtime').min())),
         tmdb_rating_norm = ((pl.col('tmdb_rating') - pl.col('tmdb_rating').min()) /
             (pl.col('tmdb_rating').max() - pl.col('tmdb_rating').min())),
         tmdb_votes_norm = ((pl.col('tmdb_votes') - pl.col('tmdb_votes').min()) /
@@ -143,11 +168,12 @@ def xgb_prep():
         imdb_rating_norm = ((pl.col('imdb_rating') - pl.col('imdb_rating').min()) /
             (pl.col('imdb_rating').max() - pl.col('imdb_rating').min())),
         imdb_votes_norm = ((pl.col('imdb_votes') - pl.col('imdb_votes').min()) /
-            (pl.col('imdb_votes').max() - pl.col('imdb_votes').min())),
-        release_year_norm = ((pl.col('release_year') - pl.col('release_year').min()) /
-            (pl.col('release_year').max() - pl.col('release_year').min()))
+            (pl.col('imdb_votes').max() - pl.col('imdb_votes').min()))
     ).drop([
 	  	'release_year',
+        'budget',
+        'revenue',
+        'runtime',
 	  	'tmdb_rating',
 		'tmdb_votes',
 	  	'rt_score',
@@ -155,10 +181,6 @@ def xgb_prep():
         'imdb_rating',
         'imdb_votes'
 	])
-
-    # encode categorical list columns
-    genre_encoded = encode_list_column(df['genre'], 'genre')
-    df = pl.concat([df, genre_encoded], how='horizontal').drop('genre')
 
     # currently not included in training set as it would add 5148 columns
     #production_companies_encoded = encode_list_column(df['production_companies'], 'production_company')
@@ -174,19 +196,26 @@ def xgb_prep():
     spoken_languages_encoded = encode_list_column(df['spoken_languages'], 'spoken_language')
     df = pl.concat([df, spoken_languages_encoded], how='horizontal').drop('spoken_languages')
 
+    # encode categorical list columns
+    genre_encoded = encode_list_column(df['genre'], 'genre')
+    df = pl.concat([df, genre_encoded], how='horizontal').drop('genre')
+
     # label counts
     label_counts = df.group_by('label').agg(pl.len())
     print(label_counts)
 
     # numerica columns
     print(df.select([
+        'budget_norm',
+        'revenue_norm',
+        'runtime_norm',
+        'release_year_norm'
         'tmdb_rating_norm',
 		'tmdb_votes_norm',
         'rt_score_norm',
         'metascore_norm',
         'imdb_rating_norm',
-        'imdb_votes_norm',
-        'release_year_norm'
+        'imdb_votes_norm'
     ]).describe())
 
     # write data file
