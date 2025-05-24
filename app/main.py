@@ -24,26 +24,22 @@ predictor = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan context manager for startup and shutdown events."""
     global predictor
-    # Startup logic
-    logger.info("Loading XGBoost model...")
-    try:
-        predictor = XGBMediaPredictor(artifacts_path=settings.MODEL_PATH)
-        logger.info("Model loaded successfully")
-    except Exception as e:
-        logger.error(f"Failed to load model: {e}")
-        raise RuntimeError(f"Could not load model: {e}")
+    # Load model first
+    predictor = XGBMediaPredictor(artifacts_path=settings.MODEL_PATH)
+    logger.info("Model loaded successfully")
 
-    yield  # This is where the app runs
+    # Include router AFTER predictor is loaded
+    from app.routers import prediction
+    app.include_router(prediction.get_router(predictor), prefix="/reel-driver/api", tags=["prediction"])
 
-    # Shutdown logic
-    logger.info("Shutting down API")
+    yield
+    logger.info("Shutting down")
 
 # Initialize FastAPI app with lifespan
 app = FastAPI(
     title="Reel Driver API",
-    description="Personal media curation API for predicting media preferences",
+    description="Personal media curation API for predicting media preferences using IMDB metadata",
     version="0.1.0",
     lifespan=lifespan,
     docs_url=None,  # Disable default docs
@@ -69,6 +65,7 @@ async def get_openapi_json():
 # Add exception handlers
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
+    logger.warning(f"HTTP exception: {exc.status_code} - {exc.detail}")
     return JSONResponse(
         status_code=exc.status_code,
         content={"message": exc.detail},
@@ -88,7 +85,22 @@ async def health_check():
     """Health check endpoint."""
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
-    return {"status": "healthy"}
+
+    # Additional health checks for model artifacts
+    try:
+        if not hasattr(predictor, 'feature_names') or not predictor.feature_names:
+            raise HTTPException(status_code=503, detail="Model features not properly loaded")
+        if not hasattr(predictor, 'normalization') or not predictor.normalization:
+            raise HTTPException(status_code=503, detail="Normalization parameters not loaded")
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        raise HTTPException(status_code=503, detail="Model health check failed")
+
+    return {
+        "status": "healthy",
+        "model_features": len(predictor.feature_names),
+        "normalization_fields": len(predictor.normalization)
+    }
 
 # Root endpoint
 @root_router.get("/", tags=["root"])
@@ -96,8 +108,14 @@ async def root():
     """API root endpoint."""
     return {
         "message": "Welcome to Reel Driver API",
-        "docs": "/docs",
-        "health": "/health"
+        "description": "Personal media curation API for predicting media preferences",
+        "version": "0.1.0",
+        "docs": "/reel-driver/docs",
+        "health": "/reel-driver/health",
+        "endpoints": {
+            "single_prediction": "/reel-driver/api/predict",
+            "batch_prediction": "/reel-driver/api/predict_batch"
+        }
     }
 
 # Mount docs at the prefixed path
@@ -118,11 +136,8 @@ async def custom_redoc_html():
 # Include the root router in the app
 app.include_router(root_router)
 
-# Import routers at the end to avoid circular imports
-from app.routers import prediction
-
-# Include routers - only once
-app.include_router(prediction.get_router(predictor), prefix="/reel-driver/api", tags=["prediction"])
+# REMOVED: Duplicate router inclusion that was causing the issue
+# The prediction router is now only included in the lifespan function
 
 if __name__ == "__main__":
     import uvicorn

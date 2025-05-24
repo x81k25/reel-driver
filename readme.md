@@ -99,7 +99,7 @@ uv pip compile requirements.in -o requirements.txt
 
 For the initial version of this model I am going with a binomial classifier, largely because that is the type of model that will best fit my current model training data. It would be interesting to potentially try a multi-class classification problem in the future. When discussing with my wife, we have considered labeling the data as one of these possibilities: `["would-not-watch", "would watch", "would watch multiple times"]` or something analogous. This would likely decrease the probability of getting false negatives on movies we would enjoy the most by giving them their own distinct class.
 
-#### data discovery
+#### feature selection
 
 ```mermaid
 flowchart TB
@@ -154,7 +154,7 @@ flowchart TB
                 it be
                 high}
                 
-            should_low{shold
+            should_low{should
                 it be
                 low}
         
@@ -200,7 +200,8 @@ flowchart TB
     end
     
     %% statistical analysis
-    num[numeric
+    num[continuous
+        numeric
         data]
     cat[categorical
         data]
@@ -212,31 +213,289 @@ flowchart TB
     dtype_keep --> str
 
     %% visualization
-    hist_num[histogram]
-    vio_num[violin]
-    
-    bar_cat[bar chart
-        of category
-        counts]
-    
-    bar_str_count[bar chart
-        of distinct 
-        item counts]
-    vio_str_count[violin
-        plot of 
-        character
-        count
-    ]
-    
-    num --> hist_num
-    num --> vio_num
-    
-    cat --> bar_cat
-    
-    str --> bar_str_count
-    str --> bio_str_count
-    
+    subgraph visualization
+        num_hist[histogram]
+        num_vio[violin]
+        
+        cat_bar[bar chart
+            of category
+            counts]
+        
+        str_vio[violin
+            plot of 
+            character
+            count
+        ]
+        str_bar[bar chart
+            of distinct 
+            item counts]
+        
+        num --> num_hist
+        num --> num_vio
+        
+        cat --> cat_bar
+        
+        str --> str_vio
+        str --> str_bar
+    end
+            
     %% statistical analysis
+    subgraph statistical analysis 
+        num_norm{generally
+            normal
+            distribution}
+            
+        num_hist --> num_norm
+        num_vio --> num_norm
+        
+        num_sense{does the
+            distribution 
+            make sense}
+        
+        num_keep_stat[keep
+            feature]
+        
+        num_drop[consider
+            dropping
+            feature]
+        
+        num_norm --> num_sense
+        num_sense -->|no| num_drop
+        num_sense -->|yes| num_keep_stat
+        num_norm -->|yes| num_keep_stat
+        
+        cat_useful{are the
+            categories 
+            useful}
+            
+        cat_keep_stat[keep
+            feature]
+            
+        cat_drop_stat[drop
+            feature]
+            
+        cat_bar --> cat_useful
+        cat_useful -->|no| cat_drop_stat
+        cat_useful -->|yes| cat_keep_stat
+        
+        str_length{how long
+            are the 
+            strings}
+    
+        str_dist{are there
+            many distinct
+            value}
+    
+        str_value{is there
+            sufficient value 
+            to perform text
+            embeddings}
+        
+        str_cat[consider
+            converting 
+            to categorical]
+        
+        str_drop_stat[drop
+            feature]
+        str_keep_stat[keep 
+            feature]
+            
+        str_vio --> str_length
+        str_bar --> str_length
+        
+        str_vio --> str_dist
+        str_bar --> str_dist
+        
+        str_length -->|short| str_cat
+        str_dist --> |few| str_cat
+        
+        str_length -->|long| str_value
+        str_dist -->|many| str_value
+        
+        str_value -->|no| str_drop_stat
+        str_value -->|yes| str_keep_stat
+        
+        str_cat --> cat_useful
+    end    
+    
+    %% inter-feature analysis
+    subgraph inter-feature analysis
+        num_inter[continuous
+            numeric
+            features]
+        cat_inter[categorical
+            features]
+        str_inter[string
+            features]
+            
+        num_keep_stat --> num_inter
+        cat_keep_stat --> cat_inter
+        str_keep_stat --> str_inter
+        
+        num_pear[pearson
+            correlation
+            matrix]
+        num_pear_thresh{r > ~0.85}
+        num_spear[spearman
+            correlation
+            matrix]
+        num_spear_thresh{r > ~0.85}
+            
+        cat_cramer[Cramér's V
+            test]
+        cat_chi[Chi-squared
+            test]
+        cat_cramer_thresh{V > ~0.75}
+        cat_chi_thresh{threshold}
+            
+        num_cat_anova[ANOVA
+            F-static]
+        num_cat_thresh{theshold}
+            
+        num_inter --> num_pear
+        num_pear --> num_pear_thresh
+        num_inter --> num_spear
+        num_spear --> num_spear_thresh
+        
+        num_inter --> num_cat_anova
+        cat_inter --> num_cat_anova
+        num_cat_anova --> num_cat_thresh
+        
+        cat_inter --> cat_cramer
+        cat_cramer --> cat_cramer_thresh
+        cat_inter --> cat_chi
+        cat_chi --> cat_chi_thresh
+        
+        num_keep_inter[keep 
+            feature]
+        num_drop_inter[drop 
+            feature]
+        
+        num_pear_thresh -->|over| num_keep_inter
+        num_pear_thresh -->|under| num_drop_inter
+        num_spear_thresh -->|over| num_keep_inter
+        num_spear_thresh -->|under| num_drop_inter
+        num_cat_thresh -->|over| num_keep_inter
+        num_cat_thresh -->|under| num_drop_inter
+        
+        cat_keep_inter[keep 
+            feature]
+        cat_drop_inter[drop
+            feature]
+        
+        num_cat_thresh -->|over| cat_keep_inter
+        num_cat_thresh -->|under| cat_drop_inter
+        cat_cramer_thresh -->|over| cat_keep_inter
+        cat_cramer_thresh -->|under| cat_drop_inter
+        cat_chi_thresh -->|over| cat_keep_inter
+        cat_chi_thresh -->|under| cat_drop_inter
+        
+        str_keep_inter[keep 
+            feature]
+        str_drop_inter[drop 
+            feature]
+    end
+    
+    %% target variable analysis
+    subgraph target variable analysis
+        num_target[continuous
+            numerical
+            features
+        ]
+        cat_target[categorical
+            features]
+        str_target[string
+            features]
+        
+        num_keep_inter --> num_target
+        cat_keep_inter --> cat_target
+        str_keep_inter --> str_target
+        
+        target_type{target
+            data type}
+            
+        target_cont{continuous}
+        target_cat{categorical}
+        
+        target_type --> target_cont
+        target_type --> target_cat
+        
+        num_pear_target[pearson
+            correlation
+            test]
+        num_spear_target[spearman
+            correlation
+            test
+        ]
+        num_anova[ANOVA
+            F-statistic]  
+        
+        cat_anova[ANOVA
+            F-statistic]
+        cat_cramer_target[Cramer's V
+            test]
+        cat_chi_target[chi-squared
+            test]
+        
+        num_target --> num_pear_target
+        target_cont --> num_pear_target
+        num_target --> num_spear_target
+        target_cont --> num_spear_target
+        num_target --> num_anova
+        target_cat --> num_anova
+        
+        cat_target --> cat_anova
+        target_cont --> cat_anova
+        cat_target --> cat_cramer_target
+        target_cat --> cat_cramer_target
+        cat_target --> cat_chi_target
+        target_cat --> cat_chi_target
+        
+        num_pear_target_thresh[threshold]
+        num_spear_target_thresh[threshold]
+        num_anova_thresh[threshold]  
+        
+        cat_anova_thresh[threshold]
+        cat_cramer_target_thresh[threshold]
+        cat_chi_target_thresh[threshold]
+        
+        num_pear_target --> num_pear_target_thresh
+        num_spear_target --> num_spear_target_thresh
+        num_anova --> num_anova_thresh
+        
+        cat_anova --> cat_anova_thresh
+        cat_cramer_target --> cat_cramer_target_thresh
+        cat_chi_target --> cat_chi_target_thresh
+        
+        num_keep_target[keep
+            feature]
+        num_drop_target[drop
+            feature]
+        
+        cat_keep_target[keep
+            feature]
+        cat_drop_target[drop 
+            feature]
+            
+        str_keep_target[keep
+            feature]
+        str_drop_target[drop
+            feature]
+        
+        num_pear_target_thresh -->|above| num_keep_target
+        num_pear_target_thresh -->|below| num_drop_target
+        num_spear_target_thresh -->|above| num_keep_target
+        num_spear_target_thresh -->|below| num_drop_target
+        num_anova_thresh -->|above| num_keep_target
+        num_anova_thresh -->|below| num_drop_target
+        
+        cat_anova_thresh -->|above| cat_keep_target
+        cat_anova_thresh -->|below| cat_drop_target
+        cat_cramer_target_thresh -->|above| cat_keep_target
+        cat_cramer_target_thresh -->|below| cat_drop_target
+        cat_chi_target_thresh -->|above| cat_keep_target
+        cat_chi_target_thresh -->|below| cat_drop_target
+    end
 ```
 
 #### algorithm selection
