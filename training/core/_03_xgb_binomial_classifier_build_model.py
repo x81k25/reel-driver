@@ -84,13 +84,17 @@ def xgb_build():
 
 		# Define parameter grid
 		param_grid = {
-			'max_depth': [3, 5, 7],
-			'learning_rate': [0.01, 0.1, 0.2],
-			'n_estimators': [50, 100, 200],
-			'subsample': [0.8, 1.0],
-			'colsample_bytree': [0.8, 1.0],
-			'gamma': [0, 0.1, 0.2],
 			'scale_pos_weight': [1, 5, 9, 15],
+			'max_depth': [3, 5, 7],
+			'n_estimators': [50, 100, 200],
+			'min_child_weight': [1 ,3, 5],
+			'learning_rate': [0.01, 0.1, 0.2],
+			'gamma': [0, 0.1, 0.2],
+			'reg_alpha': [0, 0.01, 0.1, 1.0],
+			'subsample': [0.8, 1.0],
+			'max_delta_step': [0, 1, 5],
+			'colsample_bytree': [0.8, 1.0],
+			'colsample_bylevel': [0.8, 1.0],
 			'enable_categorical': [True]
 		}
 

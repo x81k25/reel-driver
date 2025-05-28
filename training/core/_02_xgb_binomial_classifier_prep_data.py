@@ -80,7 +80,7 @@ def xgb_prep():
             'rt_score',
             'metascore',
             'imdb_rating',
-            'imdb_votes'            
+            'imdb_votes',
             # categorical
             'origin_country',
             'production_status',
@@ -155,7 +155,7 @@ def xgb_prep():
             (pl.col('budget').max() - pl.col('budget').min())),
         revenue_norm = ((pl.col('revenue') - pl.col('revenue').min()) /
             (pl.col('revenue').max() - pl.col('revenue').min())),
-        runtime = ((pl.col('runtime') - pl.col('runtime').min()) /
+        runtime_norm = ((pl.col('runtime') - pl.col('runtime').min()) /
             (pl.col('runtime').max() - pl.col('runtime').min())),
         tmdb_rating_norm = ((pl.col('tmdb_rating') - pl.col('tmdb_rating').min()) /
             (pl.col('tmdb_rating').max() - pl.col('tmdb_rating').min())),
@@ -209,7 +209,7 @@ def xgb_prep():
         'budget_norm',
         'revenue_norm',
         'runtime_norm',
-        'release_year_norm'
+        'release_year_norm',
         'tmdb_rating_norm',
 		'tmdb_votes_norm',
         'rt_score_norm',

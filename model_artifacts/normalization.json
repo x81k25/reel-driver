@@ -1,4 +1,20 @@
 {
+  "release_year": {
+    "min": 1912,
+    "max": 2025
+  },
+  "budget": {
+    "min": 0,
+    "max": 356000000
+  },
+  "revenue": {
+    "min": 0,
+    "max": 2799439100
+  },
+  "runtime": {
+    "min": 0,
+    "max": 351
+  },
   "tmdb_rating": {
     "min": 0.0,
     "max": 10.0
@@ -22,9 +38,5 @@
   "imdb_votes": {
     "min": 5,
     "max": 3042120
-  },
-  "release_year": {
-    "min": 1912,
-    "max": 2025
   }
 }

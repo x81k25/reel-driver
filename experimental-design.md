@@ -1,10 +1,10 @@
-### experimental design
+# experimental design
 
-#### problem formulation
+## problem formulation
 
 For the initial version of this model I am going with a binomial classifier, largely because that is the type of model that will best fit my current model training data. It would be interesting to potentially try a multi-class classification problem in the future. When discussing with my wife, we have considered labeling the data as one of these possibilities: `["would-not-watch", "would watch", "would watch multiple times"]` or something analogous. This would likely decrease the probability of getting false negatives on movies we would enjoy the most by giving them their own distinct class.
 
-#### feature selection
+## feature selection
 
 ```mermaid
 flowchart TB
@@ -278,22 +278,22 @@ flowchart TD
         num_pear[pearson
             correlation
             matrix]
-        num_pear_thresh{r > ~0.85}
+        num_pear_thresh{r = 0.85}
         num_spear[spearman
             correlation
             matrix]
-        num_spear_thresh{r > ~0.85}
+        num_spear_thresh{r = 0.85}
             
         cat_cramer[Cramér's V
             test]
         cat_chi[Chi-squared
             test]
-        cat_cramer_thresh{V > ~0.75}
-        cat_chi_thresh{threshold}
+        cat_cramer_thresh{V = 0.75}
+        cat_chi_thresh{p = 0.05}
             
         num_cat_anova[ANOVA
-            F-static]
-        num_cat_thresh{theshold}
+            F-statistic]
+        num_cat_thresh{F = 10}
             
         num_inter --> num_pear
         num_pear --> num_pear_thresh
@@ -314,24 +314,24 @@ flowchart TD
         num_drop_inter[drop 
             feature]
         
-        num_pear_thresh -->|over| num_keep_inter
-        num_pear_thresh -->|under| num_drop_inter
-        num_spear_thresh -->|over| num_keep_inter
-        num_spear_thresh -->|under| num_drop_inter
-        num_cat_thresh -->|over| num_keep_inter
-        num_cat_thresh -->|under| num_drop_inter
+        num_pear_thresh -->|>| num_drop_inter
+        num_pear_thresh -->|<| num_keep_inter
+        num_spear_thresh -->|>| num_drop_inter
+        num_spear_thresh -->|<| num_keep_inter
+        num_cat_thresh -->|>| num_keep_inter
+        num_cat_thresh -->|<| num_drop_inter
         
         cat_keep_inter[keep 
             feature]
         cat_drop_inter[drop
             feature]
         
-        num_cat_thresh -->|over| cat_keep_inter
-        num_cat_thresh -->|under| cat_drop_inter
-        cat_cramer_thresh -->|over| cat_keep_inter
-        cat_cramer_thresh -->|under| cat_drop_inter
-        cat_chi_thresh -->|over| cat_keep_inter
-        cat_chi_thresh -->|under| cat_drop_inter
+        num_cat_thresh -->|>| cat_keep_inter
+        num_cat_thresh -->|<| cat_drop_inter
+        cat_cramer_thresh -->|>| cat_drop_inter
+        cat_cramer_thresh -->|<| cat_keep_inter
+        cat_chi_thresh -->|<| cat_keep_inter
+        cat_chi_thresh -->|>| cat_drop_inter
         
         %% str_keep_inter[keep 
         %%    feature]
@@ -390,13 +390,13 @@ flowchart TD
         cat_target --> cat_chi_target
         target_cat --> cat_chi_target
         
-        num_pear_target_thresh[threshold]
-        num_spear_target_thresh[threshold]
-        num_anova_thresh[threshold]  
+        num_pear_target_thresh{"|r| = 0.3"}
+        num_spear_target_thresh{"|r| = 0.3"}
+        num_anova_thresh{F = 10}
         
-        cat_anova_thresh[threshold]
-        cat_cramer_target_thresh[threshold]
-        cat_chi_target_thresh[threshold]
+        cat_anova_thresh{F = 10}
+        cat_cramer_target_thresh{V = 0.3}
+        cat_chi_target_thresh{p = 0.05}
         
         num_pear_target --> num_pear_target_thresh
         num_spear_target --> num_spear_target_thresh
@@ -421,19 +421,19 @@ flowchart TD
         %%str_drop_target[drop
         %%    feature]
         
-        num_pear_target_thresh -->|above| num_keep_target
-        num_pear_target_thresh -->|below| num_drop_target
-        num_spear_target_thresh -->|above| num_keep_target
-        num_spear_target_thresh -->|below| num_drop_target
-        num_anova_thresh -->|above| num_keep_target
-        num_anova_thresh -->|below| num_drop_target
+        num_pear_target_thresh -->|>| num_keep_target
+        num_pear_target_thresh -->|<| num_drop_target
+        num_spear_target_thresh -->|>| num_keep_target
+        num_spear_target_thresh -->|<| num_drop_target
+        num_anova_thresh -->|>| num_keep_target
+        num_anova_thresh -->|<| num_drop_target
         
-        cat_anova_thresh -->|above| cat_keep_target
-        cat_anova_thresh -->|below| cat_drop_target
-        cat_cramer_target_thresh -->|above| cat_keep_target
-        cat_cramer_target_thresh -->|below| cat_drop_target
-        cat_chi_target_thresh -->|above| cat_keep_target
-        cat_chi_target_thresh -->|below| cat_drop_target
+        cat_anova_thresh -->|>| cat_keep_target
+        cat_anova_thresh -->|<| cat_drop_target
+        cat_cramer_target_thresh -->|>| cat_keep_target
+        cat_cramer_target_thresh -->|<| cat_drop_target
+        cat_chi_target_thresh -->|<| cat_keep_target
+        cat_chi_target_thresh -->|>| cat_drop_target
     end
     
     classDef num_class stroke:#FF9973
@@ -444,9 +444,9 @@ flowchart TD
     class cat_inter,cat_keep_inter,cat_target,cat_keep_target cat_class
 ```
 
-#### algorithm selection
+## algorithm selection
 
-##### Why XGBoost
+### why XGBoost
 
 XGBoost was selected as the primary algorithm due to its exceptional ability to handle the complex, non-linear patterns present in personal media preferences:
 
@@ -486,7 +486,7 @@ XGBoost was selected as the primary algorithm due to its exceptional ability to 
 - Crucial for learning genuine patterns from limited personal training data
 - Balances model complexity with generalization ability
 
-##### Other Models That Would Underperform
+### other models that would likely underperform
 
 **Linear Models**:
 - Completely fail to capture non-linear interactions and conditional preferences
@@ -512,7 +512,7 @@ XGBoost was selected as the primary algorithm due to its exceptional ability to 
 - No explicit model of preference patterns, just memorizes similar examples
 - Poor performance with mixed categorical and continuous features
 
-##### Other Options That Might Work Well
+### other options that might work well
 
 **Random Forest**:
 - Strong alternative that captures non-linear relationships and feature interactions
@@ -545,7 +545,7 @@ XGBoost was selected as the primary algorithm due to its exceptional ability to 
 - Doesn't provide interpretability benefits of tree-based models
 - Less effective at handling the high-dimensional feature space after encoding
 
-#### feature engineering
+## feature engineering
 
 ```mermaid
 flowchart TD
@@ -590,36 +590,82 @@ flowchart TD
     K --> L[Ready for XGBoost Training]
 ```
 
-#### model definition and hyperparameter grid
+## model hyperparameters
 
-| Parameter | Values Tested | Range Type | Purpose | Impact on Model | Priority | Justification |
-|-----------|---------------|------------|---------|-----------------|----------|---------------|
-| scale_pos_weight | [1, 5, 9, 15] | Low<br>High | Handle class imbalance | Prediction accuracy for minority class | High | Critical for 10:1 class imbalance in movie preferences; ensures model doesn't default to majority class |
-| max_depth | [3, 5, 7] | Low<br>Medium<br>High | Control tree complexity | Feature interaction depth | High | Captures complex interactions (RT score + IMDB votes + genre) while preventing overfitting on limited preference data |
-| n_estimators | [50, 100, 200] | Low<br>Medium<br>High | Number of boosting rounds | Model capacity and training time | High | Balances learning capacity with computational efficiency; more trees = better pattern recognition |
-| min_child_weight | [1, 3, 5] | Low<br>Medium<br>High | Minimum leaf sample weight | Leaf node reliability | High | Prevents unreliable predictions from small sample sizes, critical with 10:1 class imbalance |
-| learning_rate | [0.01, 0.1, 0.2] | Low<br>Medium<br>High | Step size for updates | Convergence speed vs accuracy | Medium | Conservative rates prevent overshooting optimal solutions for nuanced preference patterns |
-| gamma | [0, 0.1, 0.2] | None<br>Low<br>Medium | Minimum split loss | Tree pruning aggressiveness | Medium | Prevents overfitting to personal quirks while maintaining genuine preference patterns |
-| reg_alpha | [0, 0.01, 0.1, 1.0] | None<br>Low<br>Medium<br>High | L1 regularization | Automatic feature selection | Medium | Feature selection among movie metadata; removes irrelevant features automatically |
-| subsample | [0.8, 1.0] | High<br>Full | Training sample fraction | Overfitting control | Medium | Regularization technique; especially important with limited personal training data |
-| max_delta_step | [0, 1, 5] | None<br>Low<br>Medium | Maximum delta step | Imbalanced class handling | Low | Additional control for extreme class imbalance; secondary to scale_pos_weight |
-| colsample_bytree | [0.8, 1.0] | High<br>Full | Feature sampling per tree | Feature selection and overfitting | Low | Secondary regularization; less critical given strong feature relevance in movie metadata |
-| colsample_bylevel | [0.8, 1.0] | High<br>Full | Feature sampling per level | Additional regularization | Low | Tertiary regularization dimension; minimal impact on movie preference modeling |
-| enable_categorical | [True] | Fixed | Categorical feature handling | Genre and language processing | Low | Required for proper handling of movie genres/languages, but no tuning needed |
+### class imbalance control
 
-**Column Definitions**:
+Class imbalance is the primary challenge with a 10:1 negative-to-positive ratio. `scale_pos_weight` directly addresses this by weighting positive examples more heavily during training. `min_child_weight` prevents unreliable predictions from small positive sample sizes by requiring sufficient instance weight in leaf nodes. `max_delta_step` provides additional imbalance protection by limiting how dramatically any single tree can adjust predictions.
 
-- Parameter - XGBoost hyperparameter name
-- Values Tested - Specific values included in grid search
-- Range Type - Categorical description of value range (Low/Medium/High, etc.)
-- Purpose - What aspect of the model this parameter controls
-- Impact on Model - How changes affect model behavior/performance
-- Priority - Importance level for movie recommendation performance
-- Justification - Why this parameter matters for your specific use case
+### Bias vs Variance Trade-off (High Impact)
 
-#### model training and tuning
+Managing model complexity involves balancing bias (underfitting) against variance (overfitting) through multiple mechanisms. `max_depth` controls how many questions each tree can ask - deeper trees capture complex interactions but risk memorizing noise. `n_estimators` sets the number of expert voters, with more trees typically improving performance until diminishing returns. `learning_rate` moderates learning aggression, requiring more trees at lower rates but achieving more stable convergence.
 
-#### model evaluation metrics   
+Regularization techniques prevent overfitting while maintaining model capacity. gamma enforces conservative tree-building by requiring meaningful loss reduction before adding complexity. `reg_alpha` applies L1 penalties that push weak feature weights toward zero, automatically removing irrelevant features. `subsample` trains each tree on random data subsets, forcing generalization while reducing computational load. `colsample_bytree` and `colsample_bylevel` add feature randomization layers that prevent overreliance on specific features. `min_child_weight` prevents unreliable predictions from small sample sizes. 
+
+### computational efficiency vs performance
+
+Training speed trades off with model quality primarily through `n_estimators` and `learning_rate`. More estimators with lower learning rates improve performance but extend training time. `subsample` reduces computational load by training each tree on a random data subset while providing regularization benefits that prevent overfitting.
+
+### feature selection and regularization
+
+Automatic feature selection occurs through multiple mechanisms. `reg_alpha` applies L1 penalties that push weak feature weights toward zero, effectively removing irrelevant features. `colsample_bytree` creates feature specialists by limiting each tree to a random feature subset. `colsample_bylevel` adds another randomization layer within tree levels for additional regularization. `enable_categorical` optimizes categorical feature handling without requiring manual tuning.
+
+### hyperparameter grid
+
+| Parameter | Default Value | Values Tested | Range Type | Purpose | Impact on Model | Priority | Justification |
+|-----------|---------------|---------------|------------|---------|-----------------|----------|---------------|
+| scale_pos_weight | 1 | [1, 5, 9, 15] | Low<br>High | Handle class imbalance | Prediction accuracy for minority class | High | Critical for 10:1 class imbalance in movie preferences; ensures model doesn't default to majority class |
+| max_depth | 6 | [3, 5, 7] | Low<br>Medium<br>High | Control tree complexity | Feature interaction depth | High | Captures complex interactions (RT score + IMDB votes + genre) while preventing overfitting on limited preference data |
+| n_estimators | 100 | [50, 100, 200] | Low<br>Medium<br>High | Number of boosting rounds | Model capacity and training time | High | Balances learning capacity with computational efficiency; more trees = better pattern recognition |
+| min_child_weight | 1 | [1, 3, 5] | Low<br>Medium<br>High | Minimum leaf sample weight | Leaf node reliability | High | Prevents unreliable predictions from small sample sizes, critical with 10:1 class imbalance |
+| learning_rate | 0.3 | [0.01, 0.1, 0.2] | Low<br>Medium<br>High | Step size for updates | Convergence speed vs accuracy | Medium | Conservative rates prevent overshooting optimal solutions for nuanced preference patterns |
+| gamma | 0 | [0, 0.1, 0.2] | None<br>Low<br>Medium | Minimum split loss | Tree pruning aggressiveness | Medium | Prevents overfitting to personal quirks while maintaining genuine preference patterns |
+| reg_alpha | 0 | [0, 0.01, 0.1, 1.0] | None<br>Low<br>Medium<br>High | L1 regularization | Automatic feature selection | Medium | Feature selection among movie metadata; removes irrelevant features automatically |
+| subsample | 1.0 | [0.8, 1.0] | High<br>Full | Training sample fraction | Overfitting control | Medium | Regularization technique; especially important with limited personal training data |
+| max_delta_step | 0 | [0, 1, 5] | None<br>Low<br>Medium | Maximum delta step | Imbalanced class handling | Low | Additional control for extreme class imbalance; secondary to scale_pos_weight |
+| colsample_bytree | 1.0 | [0.8, 1.0] | High<br>Full | Feature sampling per tree | Feature selection and overfitting | Low | Secondary regularization; less critical given strong feature relevance in movie metadata |
+| colsample_bylevel | 1.0 | [0.8, 1.0] | High<br>Full | Feature sampling per level | Additional regularization | Low | Tertiary regularization dimension; minimal impact on movie preference modeling |
+| enable_categorical | False | [True] | Fixed | Categorical feature handling | Genre and language processing | Low | Required for proper handling of movie genres/languages, but no tuning needed |
+
+### hyperparameters explained
+
+| sklearn parameter name | full hyperparameter name    | definition                                                | formula                                                                | explanation                                                                                                                     |
+|------------------------|-----------------------------|-----------------------------------------------------------|------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
+| scale_pos_weight       | Scale Positive Weight       | Balances positive class weight relative to negative class | pos_weight = (sum of negative instances) / (sum of positive instances) | Tells the model "pay X times more attention to positive examples" - critical when you have way more negatives than positives    |
+| max_depth              | Maximum Tree Depth          | Maximum number of splits from root to leaf in each tree   | Tree levels: root (0) → ... → leaf (max_depth)                         | How many "questions" each tree can ask - deeper trees catch complex patterns but can memorize noise                             |
+| n_estimators           | Number of Estimators        | Total number of boosting rounds (trees) to build          | Final prediction = Σ(tree_i predictions) for i=1 to n_estimators       | How many "experts" (trees) vote on each prediction - more experts usually = better performance but slower training              |
+| min_child_weight       | Minimum Child Weight        | Minimum sum of instance weights needed in a leaf node     | sum(weights) in leaf ≥ min_child_weight                                | Prevents trees from making decisions based on too few examples - like requiring at least X people to agree before making a rule |
+| learning_rate          | Learning Rate / Eta         | Step size for each boosting iteration                     | new_prediction = old_prediction + learning_rate × tree_prediction      | How much each new tree "corrects" previous mistakes - smaller = more careful learning, larger = faster but riskier              |
+| gamma                  | Gamma / Min Split Loss      | Minimum loss reduction required to make a split           | split_happens if loss_reduction > gamma                                | How much improvement required to add complexity - higher gamma = more conservative tree building                                |
+| reg_alpha              | L1 Regularization Alpha     | L1 penalty on leaf weights                                | penalty = alpha × Σ(\|weight_i\|)                                      | Pushes leaf weights toward zero, automatically removing weak features - like spring cleaning for your model                     |
+| subsample              | Subsample Ratio             | Fraction of training samples used per tree                | samples_per_tree = subsample × total_training_samples                  | Randomly uses only X% of data per tree - prevents overfitting by forcing trees to learn from different subsets                  |
+| max_delta_step         | Maximum Delta Step          | Maximum delta step allowed for each leaf's weight         | \|weight_update\| ≤ max_delta_step                                     | Caps how much each tree can change predictions - useful for extremely imbalanced data to prevent wild swings                    |
+| colsample_bytree       | Column Sample by Tree       | Fraction of features randomly sampled per tree            | features_per_tree = colsample_bytree × total_features                  | Each tree sees only X% of features - like having specialists instead of generalists                                             |
+| colsample_bylevel      | Column Sample by Level      | Fraction of features randomly sampled at each tree level  | features_per_level = colsample_bylevel × available_features            | Further randomizes feature selection within each tree level - adds another layer of regularization                              |
+| enable_categorical     | Enable Categorical Features | Direct handling of categorical variables without encoding | N/A                                                                    | Lets XGBoost understand categories (like genres) directly instead of converting to numbers first                                |
+
+### production grid
+
+```python
+param_grid = {
+    'scale_pos_weight': [1, 5, 9, 15],   
+    'max_depth': [3, 5, 7],
+    'n_estimators': [50, 100, 200],
+    'min_child_weight': [1 ,3, 5],
+    'learning_rate': [0.01, 0.1, 0.2],
+    'gamma': [0, 0.1, 0.2],
+    'reg_alpha': [0, 0.01, 0.1, 1.0],
+    'subsample': [0.8, 1.0],
+    'max_delta_step': [0, 1, 5],
+    'colsample_bytree': [0.8, 1.0],
+    'colsample_bylevel': [0.8, 1.0],
+    'enable_categorical': [True]
+}
+```
+
+## model training and tuning
+
+## model evaluation metrics   
 
 I usually lean towards f1 score as my go-to performance metric, because it presents such a reliable overall metric of model performance, but we have some additional layers here. Given the imbalanced nature of the data (roughly 10:1 negatives vs positives), average_precision would be a very good metric to use as it is my favorite for accounting for imbalanced data sets.
 
