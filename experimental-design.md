@@ -446,14 +446,192 @@ flowchart TD
 
 #### algorithm selection
 
-The primary model uses XGBoost for binary classification, as it handles complex feature interactions well and provides excellent performance with tabular data.
+##### Why XGBoost
+
+XGBoost was selected as the primary algorithm due to its exceptional ability to handle the complex, non-linear patterns present in personal media preferences:
+
+**Complex Feature Interactions**:
+- Captures sophisticated relationships between multiple variables simultaneously
+- Learns that high Rotten Tomatoes scores (>85%) + low IMDB vote counts (<1,000) = movies I won't enjoy
+- Simultaneously learns that high RT scores + high vote counts (>50,000) = strong positive indicators
+- Automatically discovers optimal feature combinations without manual engineering
+
+**Conditional Logic for Genre Preferences**:
+- Models genre-specific decision rules through tree branching
+- Learns that comedies with low RT scores but high IMDB votes are often enjoyable
+- Applies different thresholds for action movies and dramas (requiring both high RT scores and high vote counts)
+- Creates separate decision paths for each genre's unique patterns
+
+**Non-Linear Decision Boundaries**:
+- Tree-based ensemble creates complex decision boundaries beyond linear separability
+- Handles non-monotonic relationships (where more of a feature isn't always better)
+- Separates movies I'd enjoy from those I wouldn't across multiple interacting dimensions
+- Captures threshold effects and interaction terms naturally
+
+**Language Preference Modeling**:
+- Learns general preference for English-language films
+- Creates exceptions for highly-rated foreign films meeting specific criteria
+- Models conditional logic: IF language ≠ English AND RT score >90% AND IMDB votes >100,000 THEN predict positive
+- Balances general rules with nuanced exceptions
+
+**Second-Order Optimization**:
+- Uses both first and second derivatives in optimization: `L^(t) = Σ[l(y_i, ŷ_i^(t-1)) + g_i*f_t(x_i) + (1/2)*h_i*f_t²(x_i)] + Ω(f_t)`
+- Newton's method approach provides faster convergence than first-order methods
+- Better handling of complex loss landscapes created by conflicting preference signals
+- More stable learning when dealing with contradictory patterns in the data
+
+**Automatic Regularization**:
+- Built-in L1/L2 regularization prevents overfitting to personal quirks
+- Tree pruning removes splits that don't meaningfully improve predictions
+- Crucial for learning genuine patterns from limited personal training data
+- Balances model complexity with generalization ability
+
+##### Other Models That Would Underperform
+
+**Linear Models**:
+- Completely fail to capture non-linear interactions and conditional preferences
+- Cannot model scenarios where the same feature (e.g., RT score) can be both positive and negative depending on other feature values
+- Miss critical threshold effects and genre-specific patterns
+- Assume monotonic relationships that don't exist in personal preferences
+
+**Logistic Regression**:
+- Even with polynomial features, struggles with high-dimensional interaction space
+- Requires extensive manual feature engineering to capture genre-specific rules
+- Cannot efficiently model multi-way interactions between ratings, votes, and genres
+- Poor handling of categorical variables like genre combinations
+
+**Naive Bayes**:
+- Strong independence assumption misses critical feature interactions
+- Cannot capture the relationship between ratings and vote counts across different genres
+- Fails to model conditional dependencies that drive movie preferences
+- Treats each feature as independent when they clearly interact
+
+**K-Nearest Neighbors**:
+- Sensitive to curse of dimensionality with metadata features
+- Doesn't generalize well to new movies with feature combinations not in training data
+- No explicit model of preference patterns, just memorizes similar examples
+- Poor performance with mixed categorical and continuous features
+
+##### Other Options That Might Work Well
+
+**Random Forest**:
+- Strong alternative that captures non-linear relationships and feature interactions
+- Provides good baseline performance with minimal tuning required
+- However, XGBoost typically outperforms due to sequential error correction approach
+- Less sophisticated optimization compared to gradient boosting methods
+
+**CatBoost**:
+- Another gradient boosting variant with native categorical feature handling
+- Could potentially perform similarly to XGBoost on movie metadata
+- Excellent with categorical features like genres and languages
+- May require less preprocessing for categorical variables
+
+**LightGBM**:
+- Faster gradient boosting implementation with similar theoretical foundation
+- Might achieve comparable performance with significantly reduced training time
+- Potentially at the cost of some accuracy on smaller datasets like personal preferences
+- Good alternative for rapid experimentation and iteration
+
+**Neural Networks (Tabular)**:
+- Modern architectures like TabNet could potentially learn complex patterns
+- Deep networks might capture subtle interactions in movie preferences
+- Would likely require significantly more training data than available
+- Less interpretability for understanding specific preference patterns
+- Overkill for structured tabular data of this size
+
+**Support Vector Machines with RBF Kernel**:
+- Could capture non-linear relationships through kernel trick
+- Struggles with mixed categorical/continuous nature of movie metadata
+- Doesn't provide interpretability benefits of tree-based models
+- Less effective at handling the high-dimensional feature space after encoding
 
 #### feature engineering
 
-#### data splitting
+```mermaid
+flowchart TD
+    A[Raw Training Data<br/>01_training.parquet] --> B[Filter Movies Only<br/>media_type == 'movie']
+    
+    B --> C[Select Features<br/>identifiers, label, continuous,<br/>categorical, categorical lists]
+    
+    C --> D[Label Encoding]
+    D --> D1[would_watch → 1<br/>would_not_watch → 0]
+    
+    D1 --> E[Save Normalization Parameters<br/>min/max for each numeric field]
+    E --> E1[normalization.json<br/>for inference use]
+    
+    E1 --> F[Normalize Continuous Features]
+    F --> F1[release_year_norm<br/>budget_norm<br/>revenue_norm<br/>runtime_norm<br/>tmdb_rating_norm<br/>tmdb_votes_norm<br/>rt_score_norm<br/>metascore_norm<br/>imdb_rating_norm<br/>imdb_votes_norm]
+    
+    F1 --> G[Drop Original Continuous Columns]
+    
+    G --> H[Encode List Columns]
+    
+    H --> H1[Origin Country<br/>encode_list_column]
+    H1 --> H1a[origin_country_us<br/>origin_country_gb<br/>origin_country_fr<br/>...]
+    
+    H --> H2[Production Countries<br/>encode_list_column]
+    H2 --> H2a[production_country_us<br/>production_country_gb<br/>production_country_fr<br/>...]
+    
+    H --> H3[Spoken Languages<br/>encode_list_column]
+    H3 --> H3a[spoken_language_en<br/>spoken_language_es<br/>spoken_language_fr<br/>...]
+    
+    H --> H4[Genres<br/>encode_list_column]
+    H4 --> H4a[genre_action<br/>genre_drama<br/>genre_comedy<br/>...]
+    
+    H1a --> I[Drop Original List Columns]
+    H2a --> I
+    H3a --> I
+    H4a --> I
+    
+    I --> J[Drop Production Companies<br/>too many columns: 5148]
+    
+    J --> K[Final Training Dataset<br/>02_binomial_classifier_training_data.parquet]
+    
+    K --> L[Ready for XGBoost Training]
+```
 
 #### model definition and hyperparameter grid
+
+| Parameter | Values Tested | Range Type | Purpose | Impact on Model | Priority | Justification |
+|-----------|---------------|------------|---------|-----------------|----------|---------------|
+| scale_pos_weight | [1, 5, 9, 15] | Low<br>High | Handle class imbalance | Prediction accuracy for minority class | High | Critical for 10:1 class imbalance in movie preferences; ensures model doesn't default to majority class |
+| max_depth | [3, 5, 7] | Low<br>Medium<br>High | Control tree complexity | Feature interaction depth | High | Captures complex interactions (RT score + IMDB votes + genre) while preventing overfitting on limited preference data |
+| n_estimators | [50, 100, 200] | Low<br>Medium<br>High | Number of boosting rounds | Model capacity and training time | High | Balances learning capacity with computational efficiency; more trees = better pattern recognition |
+| min_child_weight | [1, 3, 5] | Low<br>Medium<br>High | Minimum leaf sample weight | Leaf node reliability | High | Prevents unreliable predictions from small sample sizes, critical with 10:1 class imbalance |
+| learning_rate | [0.01, 0.1, 0.2] | Low<br>Medium<br>High | Step size for updates | Convergence speed vs accuracy | Medium | Conservative rates prevent overshooting optimal solutions for nuanced preference patterns |
+| gamma | [0, 0.1, 0.2] | None<br>Low<br>Medium | Minimum split loss | Tree pruning aggressiveness | Medium | Prevents overfitting to personal quirks while maintaining genuine preference patterns |
+| reg_alpha | [0, 0.01, 0.1, 1.0] | None<br>Low<br>Medium<br>High | L1 regularization | Automatic feature selection | Medium | Feature selection among movie metadata; removes irrelevant features automatically |
+| subsample | [0.8, 1.0] | High<br>Full | Training sample fraction | Overfitting control | Medium | Regularization technique; especially important with limited personal training data |
+| max_delta_step | [0, 1, 5] | None<br>Low<br>Medium | Maximum delta step | Imbalanced class handling | Low | Additional control for extreme class imbalance; secondary to scale_pos_weight |
+| colsample_bytree | [0.8, 1.0] | High<br>Full | Feature sampling per tree | Feature selection and overfitting | Low | Secondary regularization; less critical given strong feature relevance in movie metadata |
+| colsample_bylevel | [0.8, 1.0] | High<br>Full | Feature sampling per level | Additional regularization | Low | Tertiary regularization dimension; minimal impact on movie preference modeling |
+| enable_categorical | [True] | Fixed | Categorical feature handling | Genre and language processing | Low | Required for proper handling of movie genres/languages, but no tuning needed |
+
+**Column Definitions**:
+
+- Parameter - XGBoost hyperparameter name
+- Values Tested - Specific values included in grid search
+- Range Type - Categorical description of value range (Low/Medium/High, etc.)
+- Purpose - What aspect of the model this parameter controls
+- Impact on Model - How changes affect model behavior/performance
+- Priority - Importance level for movie recommendation performance
+- Justification - Why this parameter matters for your specific use case
 
 #### model training and tuning
 
 #### model evaluation metrics   
+
+I usually lean towards f1 score as my go-to performance metric, because it presents such a reliable overall metric of model performance, but we have some additional layers here. Given the imbalanced nature of the data (roughly 10:1 negatives vs positives), average_precision would be a very good metric to use as it is my favorite for accounting for imbalanced data sets.
+
+But, lets talk about how I actually intend to use the model here. In my production workflow I will be using this model's probability output rather than the binary prediction output. And I am going to set the threshold below 50%. Practically speaking I want to see the edge cases, and the elements just below it. I will manually retrain those elements and (in a future state) configure the automatic-transmission to delete elements upon retraining. I am also going to manually retrain false negatives by manually adding media items. So, with the practical implications in mind, false negatives actually have a much greater weight and therefore the performance metric to be used will be recall.   
+
+| Metric | Definition | Pros | Cons |
+|--------|------------|------|------|
+| recall | TP / (TP + FN) | Minimizes missing good movies; aligns with 35% threshold strategy | Ignores false positives; can flood your library |
+| average_precision | Area under precision-recall curve | Optimizes across all thresholds; good for threshold tuning | Less directly tied to your manual curation workflow |
+| f1 | Harmonic mean of precision and recall | Balances missing movies vs manual cleanup work | Fixed threshold assumption doesn't match your flexible approach |
+| balanced_accuracy | (TPR + TNR) / 2 | Accounts for class imbalance | Doesn't prioritize recall over precision for your use case |
+| precision | TP / (TP + FP) | Minimizes manual deletion work | Conflicts with goal of catching edge cases at 35% threshold |
+| roc_auc | Area under ROC curve | Threshold-independent | Poor with imbalance; doesn't align with your workflow priorities |
+| neg_log_loss | Negative log-likelihood | Good probability calibration for threshold setting | Hard to interpret; doesn't directly measure workflow efficiency |
+| accuracy | (TP + TN) / Total | Simple to understand | Completely misleading given your manual curation process |
