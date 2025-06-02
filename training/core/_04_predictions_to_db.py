@@ -1,6 +1,3 @@
-# internal library imports
-import os
-
 # third-party imports
 import polars as pl
 import psycopg2

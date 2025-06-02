@@ -590,6 +590,85 @@ flowchart TD
     K --> L[Ready for XGBoost Training]
 ```
 
+## data split
+
+```mermaid
+flowchart TD
+    data["full
+        dataset"]
+    
+    X[(X)]
+    X_train_val[(X_train_val)]
+    X_test[(X_test)]
+    X_train[(X_train)]
+    X_val[(X_val)]
+    y[(y)]
+    y_train_val[(y_train_val)]
+    y_test[(y_test)]
+    y_train[(y_train)]
+    y_val[(y_val)]
+        
+    grid_search[[grid search]]
+    grid_search_best_model[[grid search 
+        best model]]
+    validation_test[[validation test]]
+    final_model_test[[final model test]]
+        
+    data -->|label
+        dropped| X
+    data -->|label| y
+    
+    X -->|85%| X_train_val
+    X -->|15%| X_test
+      
+    y --> |85%| y_train_val
+    y --> |15%| y_test
+    
+    X_train_val -->|85%| X_train
+    X_train_val -->|15%| X_val
+    
+    y_train_val -->|85%| y_train
+    y_train_val -->|15%| y_val
+    
+    X_train --> grid_search
+    y_train --> grid_search
+    
+    grid_search --> grid_search_cv_1
+    
+    subgraph grid_search_cv_1[grid search 1st cross validation set]
+        fold-1.1
+        fold-1.2
+        fold-1.3
+        fold-1.4
+        fold-1.5
+    end
+    
+    subgraph grid_search_cv_n[grid search nth cross validation set]
+        fold-n.1
+        fold-n.2
+        fold-n.3
+        fold-n.4
+        fold-n.5
+    end
+        
+    grid_search_cv_1 --> grid_search_cv_n
+        
+    grid_search_cv_n --> grid_search_best_model
+
+    grid_search_best_model --> validation_test
+    X_val --> validation_test
+    y_val --> validation_test
+
+    grid_search_best_model --> final_model_test
+    X_test --> final_model_test
+    y_test --> final_model_test
+    
+    linkStyle 6,8 stroke:#ff6b6b
+    linkStyle 7,9 stroke:#4ecdc4
+    linkStyle 3,5 stroke:#96ceb4
+    linkStyle 13 stroke-width:3px, stroke-dasharray: 10 5
+```
+
 ## model hyperparameters
 
 ### class imbalance control
@@ -605,10 +684,6 @@ Regularization techniques prevent overfitting while maintaining model capacity. 
 ### computational efficiency vs performance
 
 Training speed trades off with model quality primarily through `n_estimators` and `learning_rate`. More estimators with lower learning rates improve performance but extend training time. `subsample` reduces computational load by training each tree on a random data subset while providing regularization benefits that prevent overfitting.
-
-### feature selection and regularization
-
-Automatic feature selection occurs through multiple mechanisms. `reg_alpha` applies L1 penalties that push weak feature weights toward zero, effectively removing irrelevant features. `colsample_bytree` creates feature specialists by limiting each tree to a random feature subset. `colsample_bylevel` adds another randomization layer within tree levels for additional regularization. `enable_categorical` optimizes categorical feature handling without requiring manual tuning.
 
 ### hyperparameter grid
 

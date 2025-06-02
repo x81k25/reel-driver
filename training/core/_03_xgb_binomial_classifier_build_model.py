@@ -95,6 +95,7 @@ def xgb_build():
 			'max_delta_step': [0, 1, 5],
 			'colsample_bytree': [0.8, 1.0],
 			'colsample_bylevel': [0.8, 1.0],
+			'random_state': 42,
 			'enable_categorical': [True]
 		}
 
@@ -111,6 +112,11 @@ def xgb_build():
 		# Fit model
 		grid_search.fit(X_train, y_train)
 		model = grid_search.best_estimator_
+
+		# store grid_search results to file
+		gs_results_df = pd.DataFrame(grid_search.cv_results_)
+		gs_results_path = "./data/03_grid_search_results.parquet"
+		gs_results_df.to_parquet(gs_results_path)
 
 		# Log best parameters
 		for param, value in grid_search.best_params_.items():
