@@ -198,9 +198,7 @@ def track_output_metrics(
 		return converted
 
 	hyper_search_results = convert_cv_results(hyper_search.cv_results_)
-	with open("hyper_search_results.json", "w") as f:
-		json.dump(hyper_search_results, f)
-	mlflow.log_artifact("hyper_search_results.json")
+	mlflow.log_dict(hyper_search_results, "hyper_search_results.json")
 
 	# Log best parameters
 	for param, value in hyper_search.best_params_.items():
