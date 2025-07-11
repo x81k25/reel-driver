@@ -1,0 +1,5 @@
+ARG BASE_IMAGE=ghcr.io/username/reel-driver-dev/training-base:latest
+FROM ${BASE_IMAGE}
+
+# Set the entrypoint to run hyperparameter optimization
+ENTRYPOINT ["python", "-c", "from src.training.hyperparameter_optimization import __main__; __main__()"]
