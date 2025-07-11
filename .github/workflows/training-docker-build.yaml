@@ -66,8 +66,8 @@ jobs:
         
         # List of training services to build
         services=(
-          "feature_engineering:training-feature-engineering"
-          "hyperparameter_optimization:training-hyperparameter-optimization"
+          "feature_engineering:reel-driver-feature-engineering"
+          "hyperparameter_optimization:reel-driver-model-training"
         )
         
         # Build each service
@@ -106,5 +106,5 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Training images pushed:" >> $GITHUB_STEP_SUMMARY
         echo "- training-base" >> $GITHUB_STEP_SUMMARY
-        echo "- training-feature-engineering" >> $GITHUB_STEP_SUMMARY
-        echo "- training-hyperparameter-optimization" >> $GITHUB_STEP_SUMMARY
+        echo "- reel-driver-feature-engineering" >> $GITHUB_STEP_SUMMARY
+        echo "- reel-driver-model-training" >> $GITHUB_STEP_SUMMARY
