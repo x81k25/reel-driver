@@ -2,6 +2,7 @@ boto3
 ipykernel
 fastapi
 jupyter
+loguru
 matplotlib
 mlflow
 numpy
