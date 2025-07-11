@@ -57,11 +57,6 @@ click==8.1.8
     #   uvicorn
 cloudpickle==3.1.1
     # via mlflow-skinny
-colorama==0.4.6
-    # via
-    #   click
-    #   ipython
-    #   loguru
 comm==0.2.2
     # via
     #   ipykernel
@@ -114,6 +109,8 @@ graphql-relay==3.2.0
     # via graphene
 greenlet==3.2.1
     # via sqlalchemy
+gunicorn==23.0.0
+    # via mlflow
 h11==0.16.0
     # via
     #   httpcore
@@ -284,6 +281,8 @@ numpy==2.2.5
     #   seaborn
     #   statsmodels
     #   xgboost
+nvidia-nccl-cu12==2.27.5
+    # via xgboost
 opentelemetry-api==1.32.1
     # via
     #   mlflow-skinny
@@ -297,6 +296,7 @@ overrides==7.7.0
     # via jupyter-server
 packaging==24.2
     # via
+    #   gunicorn
     #   ipykernel
     #   jupyter-events
     #   jupyter-server
@@ -318,6 +318,8 @@ parso==0.8.4
     # via jedi
 patsy==1.0.1
     # via statsmodels
+pexpect==4.9.0
+    # via ipython
 pillow==11.2.1
     # via matplotlib
 platformdirs==4.3.8
@@ -336,6 +338,10 @@ psutil==7.0.0
     # via ipykernel
 psycopg2==2.9.10
     # via -r requirements.in
+ptyprocess==0.7.0
+    # via
+    #   pexpect
+    #   terminado
 pure-eval==0.2.3
     # via stack-data
 pyarrow==19.0.1
@@ -352,6 +358,7 @@ pycparser==2.22
     # via cffi
 pydantic==2.11.4
     # via
+    #   -r requirements.in
     #   fastapi
     #   mlflow-skinny
     #   pydantic-settings
@@ -523,8 +530,6 @@ uvicorn==0.34.2
     # via
     #   -r requirements.in
     #   mlflow-skinny
-waitress==3.0.2
-    # via mlflow
 wcwidth==0.2.13
     # via prompt-toolkit
 webcolors==24.11.1

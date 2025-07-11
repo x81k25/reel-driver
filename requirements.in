@@ -11,6 +11,7 @@ polars
 pyarrow
 python-dotenv
 psycopg2
+pydantic
 pydantic-settings
 scikit-learn
 seaborn

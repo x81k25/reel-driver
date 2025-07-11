@@ -3,7 +3,7 @@ import logging
 import json
 import os
 import re
-from typing import List, Union, Dict, Any
+from typing import List, Union, Dict, Any, Optional
 
 # third party imports
 import pandas as pd
@@ -12,6 +12,8 @@ import xgboost as xgb
 
 # custom/local imports
 from app.models.media_prediction_input import MediaPredictionInput
+from app.services.mlflow_client import MLflowModelLoader
+from app.core.config import settings
 
 
 class XGBMediaPredictor:
@@ -20,64 +22,94 @@ class XGBMediaPredictor:
     Handles preprocessing of input data and model inference.
     """
 
-    def __init__(self, artifacts_path: str = "./model_artifacts/"):
+    def __init__(self, model_name: Optional[str] = None, model_version: Optional[str] = None):
         """
-        Initialize the predictor with a trained model and normalization parameters.
+        Initialize the predictor with a trained model from MLflow.
 
-        :param artifacts_path: Path to the directory containing model artifacts
-        :type artifacts_path: str
+        :param model_name: MLflow registered model name (defaults to settings)
+        :param model_version: MLflow model version (defaults to latest)
         """
-        # Load the trained XGBoost model
-        self.model = xgb.XGBClassifier(enable_categorical=True)
-        self.model.load_model(os.path.join(artifacts_path, "xgb_model.json"))
+        self.model_name = model_name or settings.REEL_DRIVER_MLFLOW_MODEL
+        self.model_version = model_version or settings.REEL_DRIVER_MODEL_VERSION
+        
+        # Initialize MLflow client
+        self.mlflow_loader = MLflowModelLoader()
+        
+        # Load model and artifacts from MLflow
+        self._load_from_mlflow()
+        
+        # Initialize categorical mappings from schema
+        self._init_category_mappings_from_schema()
 
-        # Extract feature names from the model
-        self.feature_names = self.model.get_booster().feature_names
+    def _load_from_mlflow(self):
+        """Load model and artifacts from MLflow."""
+        logging.info(f"Loading model {self.model_name} version {self.model_version} from MLflow")
+        
+        try:
+            # Download model and artifacts
+            artifacts = self.mlflow_loader.download_model_artifacts(
+                self.model_name, 
+                self.model_version
+            )
+            
+            # Set model
+            self.model = artifacts['model']
+            
+            # Extract feature names from the model
+            self.feature_names = self.model.get_booster().feature_names
+            
+            # Set normalization parameters
+            self.normalization = artifacts['normalization']
+            
+            # Set engineered schema
+            self.engineered_schema = artifacts['schema']
+            
+            # Store metadata
+            self.run_id = artifacts['run_id']
+            self.loaded_model_version = artifacts['model_version']
+            
+            logging.info(f"Successfully loaded model with {len(self.feature_names)} features")
+            logging.info(f"Normalization parameters loaded for {len(self.normalization)} features")
+            logging.info(f"Schema loaded with {len(self.engineered_schema)} categorical mappings")
+            
+        except Exception as e:
+            logging.error(f"Failed to load model from MLflow: {e}")
+            raise
 
-        # Load normalization parameters
-        with open(os.path.join(artifacts_path, "normalization.json"), 'r') as f:
-            self.normalization = json.load(f)
-
-        # Initialize mappings for categorical features
-        self._init_category_mappings()
-
-    def _init_category_mappings(self):
+    def _init_category_mappings_from_schema(self):
         """
-        Initialize mappings for categorical features based on model features.
-        Extract valid genre and language values from model feature names.
+        Initialize mappings for categorical features from engineered schema.
+        Uses the schema data from MLflow artifacts instead of extracting from feature names.
         """
-        # Extract categories from feature names
+        # Initialize empty mappings
         self.genres = []
         self.origin_countries = []
         self.production_countries = []
         self.spoken_languages = []
-        self.production_statuses = []
-        self.original_languages = []
+        
+        # Extract mappings from engineered schema
+        for schema_item in self.engineered_schema:
+            original_column = schema_item['original_column']
+            exploded_mapping = schema_item['exploded_mapping']
+            
+            if original_column == 'genre':
+                # Extract genre names by removing prefix
+                self.genres = [mapping.replace('genre_', '') for mapping in exploded_mapping]
+            elif original_column == 'origin_country':
+                self.origin_countries = [mapping.replace('origin_country_', '') for mapping in exploded_mapping]
+            elif original_column == 'production_countries':
+                # Note: training uses singular 'production_country' prefix
+                self.production_countries = [mapping.replace('production_country_', '') for mapping in exploded_mapping]
+            elif original_column == 'spoken_languages':
+                # Note: training uses singular 'spoken_language' prefix
+                self.spoken_languages = [mapping.replace('spoken_language_', '') for mapping in exploded_mapping]
+        
+        # Log extracted mappings
+        logging.debug(f"Extracted {len(self.genres)} genre categories from schema")
+        logging.debug(f"Extracted {len(self.origin_countries)} origin country categories from schema")
+        logging.debug(f"Extracted {len(self.production_countries)} production country categories from schema")
+        logging.debug(f"Extracted {len(self.spoken_languages)} spoken language categories from schema")
 
-        for feature in self.feature_names:
-            if feature.startswith('genre_'):
-                genre = feature.replace('genre_', '')
-                self.genres.append(genre)
-            elif feature.startswith('origin_country_'):
-                country = feature.replace('origin_country_', '')
-                self.origin_countries.append(country)
-            elif feature.startswith('production_country_'):
-                country = feature.replace('production_country_', '')
-                self.production_countries.append(country)
-            elif feature.startswith('spoken_language_'):
-                language = feature.replace('spoken_language_', '')
-                self.spoken_languages.append(language)
-
-        # Identify categorical single-value features
-        categorical_features = [f for f in self.feature_names
-                              if f in ['production_status', 'original_language']]
-
-        # Log extracted information
-        logging.debug(f"Identified {len(self.genres)} genre categories")
-        logging.debug(f"Identified {len(self.origin_countries)} origin country categories")
-        logging.debug(f"Identified {len(self.production_countries)} production country categories")
-        logging.debug(f"Identified {len(self.spoken_languages)} spoken language categories")
-        logging.debug(f"Identified {len(categorical_features)} categorical features")
 
     def _encode_list_column(self, column_data: pl.Series, column_name: str, valid_categories: List[str]) -> pl.DataFrame:
         """
