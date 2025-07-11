@@ -39,11 +39,11 @@ jobs:
           TAGS="${{ env.IMAGE_PREFIX }}/training-base:pr-${{ github.event.number }}"
           echo "BASE_TAG=pr-${{ github.event.number }}" >> $GITHUB_ENV
         elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-          TAGS="${{ env.IMAGE_PREFIX }}/training-base:latest,${{ env.IMAGE_PREFIX }}/training-base:main,${{ env.IMAGE_PREFIX }}/training-base:sha-${{ github.sha }}"
+          TAGS="${{ env.IMAGE_PREFIX }}/training-base:latest,${{ env.IMAGE_PREFIX }}/training-base:main,${{ env.IMAGE_PREFIX }}/training-base:sha-${GITHUB_SHA:0:8}"
           echo "BASE_TAG=latest" >> $GITHUB_ENV
         else
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          TAGS="${{ env.IMAGE_PREFIX }}/training-base:${BRANCH_NAME},${{ env.IMAGE_PREFIX }}/training-base:sha-${{ github.sha }}"
+          TAGS="${{ env.IMAGE_PREFIX }}/training-base:${BRANCH_NAME},${{ env.IMAGE_PREFIX }}/training-base:sha-${GITHUB_SHA:0:8}"
           echo "BASE_TAG=${BRANCH_NAME}" >> $GITHUB_ENV
         fi
         echo "TAGS=$TAGS" >> $GITHUB_ENV
@@ -80,10 +80,10 @@ jobs:
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             SERVICE_TAGS="${{ env.IMAGE_PREFIX }}/${service_name}:pr-${{ github.event.number }}"
           elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            SERVICE_TAGS="${{ env.IMAGE_PREFIX }}/${service_name}:latest,${{ env.IMAGE_PREFIX }}/${service_name}:main,${{ env.IMAGE_PREFIX }}/${service_name}:sha-${{ github.sha }}"
+            SERVICE_TAGS="${{ env.IMAGE_PREFIX }}/${service_name}:latest,${{ env.IMAGE_PREFIX }}/${service_name}:main,${{ env.IMAGE_PREFIX }}/${service_name}:sha-${GITHUB_SHA:0:8}"
           else
             BRANCH_NAME=${GITHUB_REF#refs/heads/}
-            SERVICE_TAGS="${{ env.IMAGE_PREFIX }}/${service_name}:${BRANCH_NAME},${{ env.IMAGE_PREFIX }}/${service_name}:sha-${{ github.sha }}"
+            SERVICE_TAGS="${{ env.IMAGE_PREFIX }}/${service_name}:${BRANCH_NAME},${{ env.IMAGE_PREFIX }}/${service_name}:sha-${GITHUB_SHA:0:8}"
           fi
           
           # Build and push the service image
