@@ -1,11 +1,10 @@
 # third-party imports
 from loguru import logger
 import polars as pl
-import psycopg2.extras
 import re
 
 # custom/local imports
-import training.utils as utils
+import src.utils as utils
 
 # -----------------------------------------------------------------------------
 # supporting functions
@@ -60,42 +59,6 @@ def one_hot_encode_list_column(
             encoded_arrays.append(encoded_row)
 
     return column_names, encoded_arrays
-
-
-# -----------------------------------------------------------------------------
-# extract
-# -----------------------------------------------------------------------------
-
-def get_training() -> pl.DataFrame:
-    """
-    get the full training data table from pgsql
-
-    :return: DataFrame of all needed training data
-    """
-    con = utils.gen_pg2_con()
-
-    logger.info("retrieving atp.training")
-
-    with con.cursor() as cursor:
-        # execute query
-        cursor.execute("SELECT * FROM atp.training")
-
-        # Get column names
-        columns = [desc[0] for desc in cursor.description]
-
-        # Fetch all rows
-        rows = cursor.fetchall()
-
-        # Convert to dict for polars
-        data = [dict(zip(columns, row)) for row in rows]
-
-    logger.info(f"retrieved {len(data)} rows from atp.training")
-
-    training = pl.DataFrame(data)
-
-    con.close()
-
-    return training
 
 
 # -----------------------------------------------------------------------------
@@ -297,116 +260,6 @@ def encode_training(training: pl.DataFrame) -> pl.DataFrame:
 
 
 # -----------------------------------------------------------------------------
-# load
-# -----------------------------------------------------------------------------
-
-def put_engineered(df: pl.DataFrame):
-    """
-    Truncate atp.engineered table and insert all DataFrame rows.
-
-    Args:
-        df: Polars DataFrame with engineered data
-    """
-    logger.info("inserting engineered values to db")
-
-    con = utils.gen_pg2_con()
-    with con.cursor() as cur:
-        # Truncate existing data
-        cur.execute("TRUNCATE TABLE atp.engineered;")
-
-        # Convert DataFrame to list of tuples for bulk insert
-        data = [tuple(row) for row in df.iter_rows()]
-
-        # Insert all data
-        psycopg2.extras.execute_values(
-            cur,
-            """
-            INSERT INTO atp.engineered (
-                imdb_id, media_title, label, release_year, budget, revenue, 
-                runtime, tmdb_rating, tmdb_votes, rt_score, metascore, 
-                imdb_rating, imdb_votes, production_status, original_language,
-                origin_country, production_countries, spoken_languages, genre
-            ) VALUES %s
-            """,
-            data,
-            template=None,
-            page_size=1000
-        )
-
-        con.commit()
-
-    logger.info("engineered loaded")
-
-
-def put_norms(df: pl.DataFrame):
-    """
-    Truncate atp.engineered_normalization_table and insert all DataFrame rows.
-
-    Args:
-        df: Polars DataFrame with normalization data (feature, min, max)
-    """
-    logger.info("inserting norm table to db")
-
-    con = utils.gen_pg2_con()
-    with con.cursor() as cur:
-        # Truncate existing data
-        cur.execute("TRUNCATE TABLE atp.engineered_normalization_table;")
-
-        # Convert DataFrame to list of tuples for bulk insert
-        data = [tuple(row) for row in df.iter_rows()]
-
-        # Insert all data
-        psycopg2.extras.execute_values(
-            cur,
-            """
-            INSERT INTO atp.engineered_normalization_table (
-                feature, min, max
-            ) VALUES %s
-            """,
-            data,
-            template=None,
-            page_size=1000
-        )
-
-        con.commit()
-
-    logger.info("norm table loaded")
-
-def put_schema(df: pl.DataFrame):
-    """
-    Truncate atp.engineered_schema and insert all DataFrame rows.
-
-    Args:
-        df: Polars DataFrame with schema mapping data (original_column, exploded_mapping)
-    """
-    logger.info("inserting engineered_schema to db")
-
-    con = utils.gen_pg2_con()
-    with con.cursor() as cur:
-        # Truncate existing data
-        cur.execute("TRUNCATE TABLE atp.engineered_schema;")
-
-        # Convert DataFrame to list of tuples for bulk insert
-        data = [tuple(row) for row in df.iter_rows()]
-
-        # Insert all data
-        psycopg2.extras.execute_values(
-            cur,
-            """
-            INSERT INTO atp.engineered_schema (
-                original_column, exploded_mapping
-            ) VALUES %s
-            """,
-            data,
-            template=None,
-            page_size=1000
-        )
-
-        con.commit()
-
-    logger.info("engineered_schema loaded")
-
-# -----------------------------------------------------------------------------
 # primary function
 # -----------------------------------------------------------------------------
 
@@ -417,7 +270,7 @@ def xgb_prep():
     """
 
     # get full data set
-    training = get_training()
+    training = utils.select_star(table="training")
 
     # perform preliminary polars operations
     engineered = filter_training(training)
@@ -447,9 +300,18 @@ def xgb_prep():
     ]).describe())
 
     # store all engineered training values and metadata
-    put_engineered(engineered)
-    put_norms(normalization_table)
-    put_schema(engineered_schema)
+    utils.trunc_and_load(
+        df=engineered,
+        table_name="engineered"
+    )
+    utils.trunc_and_load(
+        df=normalization_table,
+        table_name="engineered_normalization_table"
+    )
+    utils.trunc_and_load(
+        df=engineered_schema,
+        table_name="engineered_schema"
+    )
 
 
 # main guard

@@ -6,26 +6,27 @@ from dotenv import load_dotenv
 from loguru import logger
 import polars as pl
 import psycopg2
+import psycopg2.extras
 
 # ------------------------------------------------------------------------------
 # setup and config
 # ------------------------------------------------------------------------------
 
 # load dotenv at the module level if running locally
-#if os.getenv('LOCAL_DEVELOPMENT', '').lower() == 'true':
-load_dotenv()
+if os.getenv("LOCAL_DEVELOPMENT", '') == "true":
+    load_dotenv()
 
 # ------------------------------------------------------------------------------
 # supporting functions
 # ------------------------------------------------------------------------------
 
 def gen_pg2_con(
-    host: str = os.getenv('REEL_DRIVER_HOST'),
-    port: str = os.getenv('REEL_DRIVER_PORT'),
-    dbname: str = os.getenv('REEL_DRIVER_DATABASE'),
-    schema: str = os.getenv('REEL_DRIVER_SCHEMA'),
-    user: str = os.getenv('REEL_DRIVER_USERNAME'),
-    password: str = os.getenv('REEL_DRIVER_PASSWORD')
+    host: str = os.getenv('REEL_DRIVER_TRNG_PGSQL_HOST'),
+    port: str = int(os.getenv('REEL_DRIVER_TRNG_PGSQL_PORT', 5432)),
+    dbname: str = os.getenv('REEL_DRIVER_TRNG_PGSQL_DATABASE'),
+    schema: str = os.getenv('REEL_DRIVER_TRNG_PGSQL_SCHEMA'),
+    user: str = os.getenv('REEL_DRIVER_TRNG_PGSQL_USERNAME'),
+    password: str = os.getenv('REEL_DRIVER_TRNG_PGSQL_PASSWORD')
 ) -> psycopg2.connect:
     """
     function to create and return a psycopg2 connection object
@@ -64,7 +65,7 @@ def gen_pg2_con(
 
 def select_star(
     table: str,
-    schema: str = "atp"
+    schema: str = os.getenv("REEL_DRIVER_TRNG_PGSQL_SCHEMA")
 ) -> pl.DataFrame:
     """
     get the full training data table from pgsql
@@ -100,6 +101,50 @@ def select_star(
     con.close()
 
     return df
+
+
+# ------------------------------------------------------------------------------
+# insert functions
+# ------------------------------------------------------------------------------
+
+def trunc_and_load(
+        df: pl.DataFrame,
+        table_name: str,
+        schema: str = os.getenv("REEL_DRIVER_TRNG_PGSQL_SCHEMA"),
+        truncate: bool = True
+    ):
+    """
+    Insert DataFrame rows into specified table.
+
+    :param df: polars dataframe to be loaded
+    :param table_name: name of table in the database to load to
+    :param schema: database to schema to which table belongs
+    :param truncate: whether or not to truncate the current able before
+        inserting the new value
+    :return: None
+    """
+    logger.info(f"inserting {table_name} to db")
+
+    con = gen_pg2_con()
+    with con.cursor() as cur:
+        if truncate:
+            cur.execute(f"TRUNCATE TABLE {schema}.{table_name};")
+
+        # Auto-generate column list and placeholders
+        columns = ", ".join(df.columns)
+        data = [tuple(row) for row in df.iter_rows()]
+
+        psycopg2.extras.execute_values(
+            cur,
+            f"INSERT INTO {schema}.{table_name} ({columns}) VALUES %s",
+            data,
+            template=None,
+            page_size=1000
+        )
+
+        con.commit()
+
+    logger.info(f"{table_name} loaded")
 
 
 # ------------------------------------------------------------------------------

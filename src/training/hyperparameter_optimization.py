@@ -15,7 +15,7 @@ from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSe
 import xgboost as xgb
 
 # custom/internal imports
-import training.utils as utils
+import src.utils as utils
 
 # ------------------------------------------------------------------------
 # supporting functions
@@ -269,18 +269,29 @@ def xgb_hyp_op(
 		search_strategy = 'random'
 		random_n_iter = 5
 	"""
-	# setup and params
-	load_dotenv()
+	# load dotenv at the module level if running locally
+	if os.getenv("LOCAL_DEVELOPMENT", '') == "true":
+		load_dotenv()
+
+	# set minio env vars
+	os.environ['MLFLOW_S3_ENDPOINT_URL'] = str(
+		os.environ['REEL_DRIVER_MINIO_ENDPOINT'] +
+		":" +
+		os.environ['REEL_DRIVER_MINIO_PORT']
+	)
+
+	os.environ['AWS_ACCESS_KEY_ID'] = os.environ['REEL_DRIVER_MINIO_ACCESS_KEY']
+	os.environ['AWS_SECRET_ACCESS_KEY'] = os.environ['REEL_DRIVER_MINIO_SECRET_KEY']
 
 	# set random seeds
 	np.random.seed(random_seed)
 
 	# connect to k8s mlflow service
-	mlflow_uri = "http://" + os.getenv('MLFLOW_HOST') + ":" + os.getenv('MLFLOW_PORT')
+	mlflow_uri = "http://" + os.getenv('REEL_DRIVER_MLFLOW_HOST') + ":" + os.getenv('REEL_DRIVER_MLFLOW_PORT')
 	mlflow.set_tracking_uri(mlflow_uri)
 
 	# Set experiment
-	mlflow.set_experiment(experiment_name=os.getenv('MLFLOW_EXPERIMENT'))
+	mlflow.set_experiment(experiment_name=os.getenv('REEL_DRIVER_MLFLOW_EXPERIMENT'))
 
 	logger.info("extracting engineered features")
 
@@ -381,7 +392,7 @@ def xgb_hyp_op(
 		mlflow.sklearn.log_model(
 			sk_model=full_model,
 			artifact_path="model",
-			registered_model_name="reel_driver",
+			registered_model_name=os.getenv("REEL_DRIVER_MLFLOW_MODEL"),
 			signature=signature,
 			conda_env=None
 		)
