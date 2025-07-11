@@ -67,7 +67,7 @@ jobs:
         # List of training services to build
         services=(
           "feature_engineering:reel-driver-feature-engineering"
-          "hyperparameter_optimization:reel-driver-model-training"
+          "model_training:reel-driver-model-training"
         )
         
         # Build each service
