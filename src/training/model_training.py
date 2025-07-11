@@ -271,7 +271,7 @@ def xgb_hyp_op(
 	"""
 	# load dotenv at the module level if running locally
 	if os.getenv("LOCAL_DEVELOPMENT", '') == "true":
-		load_dotenv()
+		load_dotenv(override=True)
 
 	# set minio env vars
 	os.environ['MLFLOW_S3_ENDPOINT_URL'] = str(
