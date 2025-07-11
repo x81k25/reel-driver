@@ -74,6 +74,7 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.ENV_NAME }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha::8 }}
             ${{ env.ENV_NAME == 'prod' && format('{0}/{1}:latest', env.REGISTRY, env.IMAGE_NAME) || '' }}
           build-args: |
             ENVIRONMENT=${{ env.ENV_NAME }}
