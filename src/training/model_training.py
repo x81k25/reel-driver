@@ -400,16 +400,16 @@ def xgb_hyp_op(
 
 		logger.info('full_model stored in MLflow model registry')
 
-		# Save normalization table and engineered schema as JSON artifacts
-		normalization_table_json = normalization_table.to_pandas().to_json(orient='records', indent=2)
-		with open("model-artifacts/engineered_normalization_table.json", "w") as f:
-			f.write(normalization_table_json)
-		mlflow.log_artifact("model-artifacts/engineered_normalization_table.json")
-
-		engineered_schema_json = engineered_schema.to_pandas().to_json(orient='records', indent=2)
-		with open("model-artifacts/engineered_schema.json", "w") as f:
-			f.write(engineered_schema_json)
-		mlflow.log_artifact("model-artifacts/engineered_schema.json")
+		# Save normalization table and engineered schema as JSON artifacts (in-memory)
+		mlflow.log_dict(
+			normalization_table.to_pandas().to_dict(orient='records'),
+			"model-artifacts/engineered_normalization_table.json"
+		)
+		
+		mlflow.log_dict(
+			engineered_schema.to_pandas().to_dict(orient='records'),
+			"model-artifacts/engineered_schema.json"
+		)
 
 		logger.info('normalization table and engineered schema saved as MLflow artifacts')
 
