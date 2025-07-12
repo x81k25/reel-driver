@@ -118,7 +118,9 @@ h11==0.16.0
 httpcore==1.0.9
     # via httpx
 httpx==0.28.1
-    # via jupyterlab
+    # via
+    #   -r requirements.in
+    #   jupyterlab
 idna==3.10
     # via
     #   anyio
@@ -129,6 +131,8 @@ importlib-metadata==8.6.1
     # via
     #   mlflow-skinny
     #   opentelemetry-api
+iniconfig==2.1.0
+    # via pytest
 ipykernel==6.29.5
     # via
     #   -r requirements.in
@@ -305,6 +309,7 @@ packaging==24.2
     #   matplotlib
     #   mlflow-skinny
     #   nbconvert
+    #   pytest
     #   statsmodels
 pandas==2.2.3
     # via
@@ -324,6 +329,8 @@ pillow==11.2.1
     # via matplotlib
 platformdirs==4.3.8
     # via jupyter-core
+pluggy==1.6.0
+    # via pytest
 polars==1.29.0
     # via -r requirements.in
 prometheus-client==0.21.1
@@ -372,8 +379,15 @@ pygments==2.19.1
     #   ipython-pygments-lexers
     #   jupyter-console
     #   nbconvert
+    #   pytest
 pyparsing==3.2.3
     # via matplotlib
+pytest==8.4.1
+    # via
+    #   -r requirements.in
+    #   pytest-asyncio
+pytest-asyncio==1.0.0
+    # via -r requirements.in
 python-dateutil==2.9.0.post0
     # via
     #   arrow

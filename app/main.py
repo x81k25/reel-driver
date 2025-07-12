@@ -25,9 +25,19 @@ predictor = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global predictor
-    # Load model from MLflow
-    predictor = XGBMediaPredictor()
-    logger.info(f"Model {predictor.model_name} v{predictor.loaded_model_version} loaded successfully from MLflow")
+    
+    # Check if we're in test mode by looking for a test marker
+    test_mode = getattr(app.state, 'test_mode', False)
+    
+    if not test_mode and predictor is None:
+        # Load model from MLflow in production mode
+        predictor = XGBMediaPredictor()
+        logger.info(f"Model {predictor.model_name} v{predictor.loaded_model_version} loaded successfully from MLflow")
+    else:
+        if test_mode:
+            logger.info("Running in test mode - using test predictor configuration")
+        else:
+            logger.info("Using existing predictor")
 
     # Include router AFTER predictor is loaded
     from app.routers import prediction
