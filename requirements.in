@@ -2,6 +2,7 @@ boto3
 ipykernel
 fastapi
 jupyter
+loguru
 matplotlib
 mlflow
 numpy
@@ -10,9 +11,13 @@ polars
 pyarrow
 python-dotenv
 psycopg2
+pydantic
 pydantic-settings
 scikit-learn
 seaborn
 statsmodels
 uvicorn
 xgboost
+pytest
+pytest-asyncio
+httpx

@@ -16,12 +16,15 @@ def get_router(predictor: XGBMediaPredictor):
     @router.post("/predict")
     async def predict(media_input: MediaPredictionInput):
         logger.info("prediction request received")
+        
+        # Use current global predictor instead of captured predictor for test isolation
+        from app.main import predictor as current_predictor
 
-        if predictor is None:
+        if current_predictor is None:
             raise HTTPException(status_code=503, detail="Model not loaded")
 
         try:
-            result = predictor.predict(media_input)
+            result = current_predictor.predict(media_input)
             return PredictionResponse(
                 imdb_id=result["imdb_id"],
                 prediction=result["prediction"],
@@ -36,14 +39,17 @@ def get_router(predictor: XGBMediaPredictor):
         Predict whether user would watch each media item in a batch.
         """
         logger.info("Batch prediction request received")
-        logger.info(f"Predictor is None: {predictor is None}")
+        
+        # Use current global predictor instead of captured predictor for test isolation
+        from app.main import predictor as current_predictor
+        logger.info(f"Predictor is None: {current_predictor is None}")
 
-        if predictor is None:
+        if current_predictor is None:
             logger.error("Model not loaded in batch prediction")
             raise HTTPException(status_code=503, detail="Model not loaded")
 
         try:
-            results = predictor.predict_batch(request.items)
+            results = current_predictor.predict_batch(request.items)
             return BatchPredictionResponse(results=results)
         except Exception as e:
             logger.error(f"Batch prediction error: {str(e)}", exc_info=True)

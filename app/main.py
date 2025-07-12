@@ -25,9 +25,19 @@ predictor = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global predictor
-    # Load model first
-    predictor = XGBMediaPredictor(artifacts_path=settings.MODEL_PATH)
-    logger.info("Model loaded successfully")
+    
+    # Check if we're in test mode by looking for a test marker
+    test_mode = getattr(app.state, 'test_mode', False)
+    
+    if not test_mode and predictor is None:
+        # Load model from MLflow in production mode
+        predictor = XGBMediaPredictor()
+        logger.info(f"Model {predictor.model_name} v{predictor.loaded_model_version} loaded successfully from MLflow")
+    else:
+        if test_mode:
+            logger.info("Running in test mode - using test predictor configuration")
+        else:
+            logger.info("Using existing predictor")
 
     # Include router AFTER predictor is loaded
     from app.routers import prediction
@@ -86,20 +96,32 @@ async def health_check():
     if predictor is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
-    # Additional health checks for model artifacts
+    # Additional health checks for MLflow model artifacts
     try:
         if not hasattr(predictor, 'feature_names') or not predictor.feature_names:
             raise HTTPException(status_code=503, detail="Model features not properly loaded")
         if not hasattr(predictor, 'normalization') or not predictor.normalization:
             raise HTTPException(status_code=503, detail="Normalization parameters not loaded")
+        if not hasattr(predictor, 'engineered_schema') or not predictor.engineered_schema:
+            raise HTTPException(status_code=503, detail="Engineered schema not loaded")
+        if not hasattr(predictor, 'model') or predictor.model is None:
+            raise HTTPException(status_code=503, detail="XGBoost model not loaded")
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=503, detail="Model health check failed")
 
     return {
         "status": "healthy",
-        "model_features": len(predictor.feature_names),
-        "normalization_fields": len(predictor.normalization)
+        "model_name": predictor.model_name,
+        "model_version": predictor.loaded_model_version,
+        "run_id": predictor.run_id,
+        "features_count": len(predictor.feature_names),
+        "normalization_fields": len(predictor.normalization),
+        "schema_mappings": len(predictor.engineered_schema),
+        "genre_categories": len(predictor.genres),
+        "origin_countries": len(predictor.origin_countries),
+        "production_countries": len(predictor.production_countries),
+        "spoken_languages": len(predictor.spoken_languages)
     }
 
 # Root endpoint
@@ -143,7 +165,7 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "app.main:app",
-        host=os.getenv("API_HOST", "0.0.0.0"),
-        port=int(os.getenv("API_PORT", "8000")),
+        host=settings.REEL_DRIVER_API_HOST,
+        port=settings.REEL_DRIVER_API_PORT,
         reload=True
     )

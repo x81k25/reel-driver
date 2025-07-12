@@ -3,7 +3,7 @@ import logging
 import json
 import os
 import re
-from typing import List, Union, Dict, Any
+from typing import List, Union, Dict, Any, Optional
 
 # third party imports
 import pandas as pd
@@ -12,6 +12,8 @@ import xgboost as xgb
 
 # custom/local imports
 from app.models.media_prediction_input import MediaPredictionInput
+from app.services.mlflow_client import MLflowModelLoader
+from app.core.config import settings
 
 
 class XGBMediaPredictor:
@@ -20,82 +22,178 @@ class XGBMediaPredictor:
     Handles preprocessing of input data and model inference.
     """
 
-    def __init__(self, artifacts_path: str = "./model_artifacts/"):
+    def __init__(self, model_name: Optional[str] = None, model_version: Optional[str] = None):
         """
-        Initialize the predictor with a trained model and normalization parameters.
+        Initialize the predictor with a trained model from MLflow.
 
-        :param artifacts_path: Path to the directory containing model artifacts
-        :type artifacts_path: str
+        :param model_name: MLflow registered model name (defaults to settings)
+        :param model_version: MLflow model version (defaults to latest)
         """
-        # Load the trained XGBoost model
-        self.model = xgb.XGBClassifier(enable_categorical=True)
-        self.model.load_model(os.path.join(artifacts_path, "xgb_model.json"))
+        self.model_name = model_name or settings.REEL_DRIVER_MLFLOW_MODEL
+        self.model_version = model_version or settings.REEL_DRIVER_MODEL_VERSION
+        
+        # Initialize MLflow client
+        self.mlflow_loader = MLflowModelLoader()
+        
+        # Load model and artifacts from MLflow
+        self._load_from_mlflow()
+        
+        # Initialize categorical mappings from schema
+        self._init_category_mappings_from_schema()
 
-        # Extract feature names from the model
-        self.feature_names = self.model.get_booster().feature_names
+    def _load_from_mlflow(self):
+        """Load model and artifacts from MLflow."""
+        logging.info(f"Loading model {self.model_name} version {self.model_version} from MLflow")
+        
+        try:
+            # Download model and artifacts
+            artifacts = self.mlflow_loader.download_model_artifacts(
+                self.model_name, 
+                self.model_version
+            )
+            
+            # Set model
+            self.model = artifacts['model']
+            
+            # Extract feature names from the model
+            self.feature_names = self.model.get_booster().feature_names
+            
+            # Set normalization parameters
+            self.normalization = artifacts['normalization']
+            
+            # Set engineered schema
+            self.engineered_schema = artifacts['schema']
+            
+            # Store metadata
+            self.run_id = artifacts['run_id']
+            self.loaded_model_version = artifacts['model_version']
+            
+            logging.info(f"Successfully loaded model with {len(self.feature_names)} features")
+            logging.info(f"Normalization parameters loaded for {len(self.normalization)} features")
+            logging.info(f"Schema loaded with {len(self.engineered_schema)} categorical mappings")
+            
+        except Exception as e:
+            logging.error(f"Failed to load model from MLflow: {e}")
+            raise
 
-        # Load normalization parameters
-        with open(os.path.join(artifacts_path, "normalization.json"), 'r') as f:
-            self.normalization = json.load(f)
-
-        # Initialize mappings for categorical features
-        self._init_category_mappings()
-
-    def _init_category_mappings(self):
+    def _init_category_mappings_from_schema(self):
         """
-        Initialize mappings for categorical features based on model features.
-        Extract valid genre and language values from model feature names.
+        Initialize mappings for categorical features from engineered schema.
+        Uses the exact column names from training to ensure dynamic compatibility.
         """
-        # Extract categories from feature names
+        import re
+        
+        # Initialize mapping dictionary to store column_name -> (exact_column_names, category_mapping)
+        self.column_mappings = {}
+        
+        # Initialize legacy attributes for backward compatibility
         self.genres = []
         self.origin_countries = []
         self.production_countries = []
         self.spoken_languages = []
-        self.production_statuses = []
-        self.original_languages = []
+        
+        # Extract mappings from engineered schema - store exact column names from training
+        for schema_item in self.engineered_schema:
+            original_column = schema_item['original_column']
+            exploded_mapping_raw = schema_item['exploded_mapping']
+            
+            # Parse the exploded_mapping - it's stored as a string representation of numpy array
+            if isinstance(exploded_mapping_raw, str):
+                # Remove brackets and split by whitespace, then clean up quotes
+                exploded_mapping_clean = exploded_mapping_raw.strip("[]'\"")
+                # Split by whitespace and remove quotes from each element
+                exploded_mapping = [col.strip("'\"") for col in exploded_mapping_clean.split() if col.strip("'\"")]
+            else:
+                exploded_mapping = exploded_mapping_raw  # Already a list
+            
+            # Create a mapping from category value to column name for efficient lookup
+            category_to_column = {}
+            for column_name in exploded_mapping:
+                # Extract the category from the column name by removing the prefix
+                # Use dynamic prefix removal based on the original column name
+                prefix = original_column + '_'
+                if column_name.startswith(prefix):
+                    category = column_name[len(prefix):]
+                    category_to_column[category] = column_name
+                else:
+                    # Handle edge case where prefix doesn't match exactly
+                    # Extract everything after the first underscore
+                    if '_' in column_name:
+                        category = column_name.split('_', 1)[1]
+                        category_to_column[category] = column_name
+            
+            # Store both the exact column names and the category mapping
+            self.column_mappings[original_column] = {
+                'column_names': exploded_mapping,
+                'category_to_column': category_to_column
+            }
+            
+            # Set legacy attributes for backward compatibility
+            if original_column == 'genre':
+                self.genres = exploded_mapping
+            elif original_column == 'origin_country':
+                self.origin_countries = exploded_mapping
+            elif original_column == 'production_countries':
+                self.production_countries = exploded_mapping
+            elif original_column == 'spoken_languages':
+                self.spoken_languages = exploded_mapping
+        
+        # Log extracted mappings
+        logging.debug(f"Schema mappings initialized for {len(self.column_mappings)} categorical columns")
+        for orig_col, mapping in self.column_mappings.items():
+            logging.debug(f"  {orig_col}: {len(mapping['column_names'])} columns")
 
-        for feature in self.feature_names:
-            if feature.startswith('genre_'):
-                genre = feature.replace('genre_', '')
-                self.genres.append(genre)
-            elif feature.startswith('origin_country_'):
-                country = feature.replace('origin_country_', '')
-                self.origin_countries.append(country)
-            elif feature.startswith('production_country_'):
-                country = feature.replace('production_country_', '')
-                self.production_countries.append(country)
-            elif feature.startswith('spoken_language_'):
-                language = feature.replace('spoken_language_', '')
-                self.spoken_languages.append(language)
 
-        # Identify categorical single-value features
-        categorical_features = [f for f in self.feature_names
-                              if f in ['production_status', 'original_language']]
-
-        # Log extracted information
-        logging.debug(f"Identified {len(self.genres)} genre categories")
-        logging.debug(f"Identified {len(self.origin_countries)} origin country categories")
-        logging.debug(f"Identified {len(self.production_countries)} production country categories")
-        logging.debug(f"Identified {len(self.spoken_languages)} spoken language categories")
-        logging.debug(f"Identified {len(categorical_features)} categorical features")
-
-    def _encode_list_column(self, column_data: pl.Series, column_name: str, valid_categories: List[str]) -> pl.DataFrame:
+    def _encode_list_column(self, column_data: pl.Series, column_name: str) -> pl.DataFrame:
         """
         Convert a column of string lists into binary indicator columns.
-        Matches the training pipeline encoding logic.
+        Uses the exact schema from training to ensure dynamic compatibility.
         """
-        if column_data[0] is None:
+        import re
+        
+        # Get input values from the series
+        if column_data[0] is None or len(column_data) == 0:
             input_values = []
         else:
             input_values = column_data[0].to_list() if column_data[0] is not None else []
 
-        # Create binary columns for each valid category
+        # Get the schema mapping for this column
+        if column_name not in self.column_mappings:
+            # If column not in schema, return empty DataFrame with no columns
+            logging.warning(f"Column {column_name} not found in engineered schema, skipping")
+            return pl.DataFrame()
+        
+        mapping = self.column_mappings[column_name]
+        category_to_column = mapping['category_to_column']
+        
+        # Apply the same cleaning function used in training
+        def clean_value(value: str) -> str:
+            """Apply the same cleaning logic as training feature engineering."""
+            # Replace non-word characters with underscores and convert to lowercase
+            cleaned = re.sub(r'[^\w]', '_', value.lower())
+            # Replace multiple consecutive underscores with single underscore
+            cleaned = re.sub(r'_+', '_', cleaned)
+            # Remove leading/trailing underscores
+            return cleaned.strip('_')
+
+        # Create binary columns for each category defined in the schema
         result_columns = []
-        for category in valid_categories:
-            # Check if category exists in input values
-            binary_value = 1 if any(val for val in input_values if val and
-                                  re.sub(r'[^\w]', '_', val.lower()) == category) else 0
-            result_columns.append(pl.lit(binary_value).alias(f"{column_name}_{category}"))
+        for category, exact_column_name in category_to_column.items():
+            # Check if any input value matches this category (after cleaning)
+            binary_value = 0
+            for input_val in input_values:
+                if input_val and clean_value(input_val) == category:
+                    binary_value = 1
+                    break
+            
+            # Use the exact column name from training schema
+            result_columns.append(pl.lit(binary_value).alias(exact_column_name))
+
+        # Handle case where no categories were matched but we still need to return the schema columns
+        if not result_columns:
+            # Create all schema columns with 0 values
+            for exact_column_name in mapping['column_names']:
+                result_columns.append(pl.lit(0).alias(exact_column_name))
 
         return pl.DataFrame().with_columns(result_columns)
 
@@ -126,7 +224,8 @@ class XGBMediaPredictor:
         ]
 
         for field in continuous_fields:
-            if field in self.normalization:
+            # Only normalize fields that exist in both the input and normalization parameters
+            if field in self.normalization and field in df.columns:
                 norm_min = self.normalization[field]["min"]
                 norm_max = self.normalization[field]["max"]
 
@@ -148,38 +247,21 @@ class XGBMediaPredictor:
         if 'overview' in feature_df.columns:
             feature_df = feature_df.drop('overview')
 
-        # Encode categorical list features
-        # Origin countries
-        origin_country_encoded = self._encode_list_column(
-            feature_df['origin_country'] if 'origin_country' in feature_df.columns else pl.Series([None]),
-            'origin_country',
-            self.origin_countries
-        )
-        feature_df = pl.concat([feature_df, origin_country_encoded], how='horizontal')
-
-        # Production countries (note: singular prefix in training)
-        production_countries_encoded = self._encode_list_column(
-            feature_df['production_countries'] if 'production_countries' in feature_df.columns else pl.Series([None]),
-            'production_country',
-            self.production_countries
-        )
-        feature_df = pl.concat([feature_df, production_countries_encoded], how='horizontal')
-
-        # Spoken languages (note: singular prefix in training)
-        spoken_languages_encoded = self._encode_list_column(
-            feature_df['spoken_languages'] if 'spoken_languages' in feature_df.columns else pl.Series([None]),
-            'spoken_language',
-            self.spoken_languages
-        )
-        feature_df = pl.concat([feature_df, spoken_languages_encoded], how='horizontal')
-
-        # Genres
-        genre_encoded = self._encode_list_column(
-            feature_df['genre'] if 'genre' in feature_df.columns else pl.Series([None]),
-            'genre',
-            self.genres
-        )
-        feature_df = pl.concat([feature_df, genre_encoded], how='horizontal')
+        # Encode categorical list features dynamically based on engineered_schema
+        for original_column in self.column_mappings.keys():
+            # Get the column data (or create empty series if column doesn't exist)
+            column_data = (
+                feature_df[original_column] 
+                if original_column in feature_df.columns 
+                else pl.Series([None])
+            )
+            
+            # Encode the column using the schema
+            encoded_df = self._encode_list_column(column_data, original_column)
+            
+            # Concatenate the encoded columns to the feature DataFrame
+            if len(encoded_df.columns) > 0:  # Only concat if we got columns back
+                feature_df = pl.concat([feature_df, encoded_df], how='horizontal')
 
         # Handle categorical single-value features (production_status, original_language)
         # These are treated as categorical by pandas in training
