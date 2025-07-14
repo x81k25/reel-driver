@@ -43,7 +43,7 @@ class TestHealthEndpoint:
         
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
         data = response.json()
-        assert data["message"] == "Model not loaded"
+        assert data["message"] == "Model not loaded - MLflow connection failed or model not found. Check MLflow server status and model registry."
 
 
 class TestPredictionEndpoint:
@@ -125,7 +125,7 @@ class TestPredictionEndpoint:
         
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
         data = response.json()
-        assert data["message"] == "Model not loaded"
+        assert data["message"] == "Model not loaded - MLflow connection failed or model not found. Check MLflow server status and model registry."
     
     def test_single_prediction_model_error(self, client_with_mock_predictor, sample_media_input, mock_predictor):
         """Test single prediction when model throws error."""
@@ -197,7 +197,7 @@ class TestBatchPredictionEndpoint:
         
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
         data = response.json()
-        assert data["message"] == "Model not loaded"
+        assert data["message"] == "Model not loaded - MLflow connection failed or model not found. Check MLflow server status and model registry."
     
     def test_batch_prediction_model_error(self, client_with_mock_predictor, batch_media_input, mock_predictor):
         """Test batch prediction when model throws error."""

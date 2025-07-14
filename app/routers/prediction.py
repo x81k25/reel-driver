@@ -21,7 +21,10 @@ def get_router(predictor: XGBMediaPredictor):
         from app.main import predictor as current_predictor
 
         if current_predictor is None:
-            raise HTTPException(status_code=503, detail="Model not loaded")
+            raise HTTPException(
+                status_code=503, 
+                detail="Model not loaded - MLflow connection failed or model not found. Check MLflow server status and model registry."
+            )
 
         try:
             result = current_predictor.predict(media_input)
@@ -46,7 +49,10 @@ def get_router(predictor: XGBMediaPredictor):
 
         if current_predictor is None:
             logger.error("Model not loaded in batch prediction")
-            raise HTTPException(status_code=503, detail="Model not loaded")
+            raise HTTPException(
+                status_code=503, 
+                detail="Model not loaded - MLflow connection failed or model not found. Check MLflow server status and model registry."
+            )
 
         try:
             results = current_predictor.predict_batch(request.items)

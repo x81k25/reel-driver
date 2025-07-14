@@ -12,8 +12,18 @@ import xgboost as xgb
 
 # custom/local imports
 from app.models.media_prediction_input import MediaPredictionInput
-from app.services.mlflow_client import MLflowModelLoader
+from app.services.mlflow_client import (
+    MLflowModelLoader, 
+    MLflowConnectionError, 
+    MLflowModelNotFoundError, 
+    MLflowArtifactError
+)
 from app.core.config import settings
+
+
+class ModelLoadingError(Exception):
+    """Raised when model cannot be loaded for prediction."""
+    pass
 
 
 class XGBMediaPredictor:
@@ -32,14 +42,22 @@ class XGBMediaPredictor:
         self.model_name = model_name or settings.REEL_DRIVER_MLFLOW_MODEL
         self.model_version = model_version or settings.REEL_DRIVER_MODEL_VERSION
         
-        # Initialize MLflow client
-        self.mlflow_loader = MLflowModelLoader()
-        
-        # Load model and artifacts from MLflow
-        self._load_from_mlflow()
-        
-        # Initialize categorical mappings from schema
-        self._init_category_mappings_from_schema()
+        try:
+            # Initialize MLflow client
+            self.mlflow_loader = MLflowModelLoader()
+            
+            # Load model and artifacts from MLflow
+            self._load_from_mlflow()
+            
+            # Initialize categorical mappings from schema
+            self._init_category_mappings_from_schema()
+            
+        except (MLflowConnectionError, MLflowModelNotFoundError, MLflowArtifactError) as e:
+            logging.error(f"Failed to initialize predictor: {e}")
+            raise ModelLoadingError(f"Failed to initialize predictor: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error initializing predictor: {e}")
+            raise ModelLoadingError(f"Unexpected error initializing predictor: {e}")
 
     def _load_from_mlflow(self):
         """Load model and artifacts from MLflow."""
@@ -72,9 +90,12 @@ class XGBMediaPredictor:
             logging.info(f"Normalization parameters loaded for {len(self.normalization)} features")
             logging.info(f"Schema loaded with {len(self.engineered_schema)} categorical mappings")
             
-        except Exception as e:
+        except (MLflowConnectionError, MLflowModelNotFoundError, MLflowArtifactError) as e:
             logging.error(f"Failed to load model from MLflow: {e}")
-            raise
+            raise  # Re-raise to preserve specific error type
+        except Exception as e:
+            logging.error(f"Unexpected error loading model from MLflow: {e}")
+            raise ModelLoadingError(f"Unexpected error loading model from MLflow: {e}")
 
     def _init_category_mappings_from_schema(self):
         """
@@ -327,22 +348,26 @@ class XGBMediaPredictor:
             if col not in ['production_status', 'original_language']:
                 features_df[col] = pd.to_numeric(features_df[col], errors='coerce').fillna(0.0)
 
-        # Make prediction
-        prediction = bool(self.model.predict(features_df)[0])
+        try:
+            # Make prediction
+            prediction = bool(self.model.predict(features_df)[0])
 
-        # Get probability
-        probabilities = self.model.predict_proba(features_df)[0]
-        probability = float(probabilities[1])  # Probability of positive class
+            # Get probability
+            probabilities = self.model.predict_proba(features_df)[0]
+            probability = float(probabilities[1])  # Probability of positive class
 
-        # Create result object
-        result = {
-            "imdb_id": media_input["imdb_id"] if isinstance(media_input, dict) else media_input.imdb_id,
-            "prediction": prediction,
-            "probability": probability
-        }
+            # Create result object
+            result = {
+                "imdb_id": media_input["imdb_id"] if isinstance(media_input, dict) else media_input.imdb_id,
+                "prediction": prediction,
+                "probability": probability
+            }
 
-        logging.debug(f"Prediction result: {result}")
-        return result
+            logging.debug(f"Prediction result: {result}")
+            return result
+        except Exception as e:
+            logging.error(f"Model prediction failed: {e}")
+            raise ModelLoadingError(f"Model prediction failed: {e}")
 
     def predict_batch(self, media_inputs: List[Union[MediaPredictionInput, Dict]]) -> List[Dict[str, Any]]:
         """
@@ -359,7 +384,11 @@ class XGBMediaPredictor:
         results = []
 
         for input_item in media_inputs:
-            result = self.predict(input_item)
-            results.append(result)
+            try:
+                result = self.predict(input_item)
+                results.append(result)
+            except Exception as e:
+                logging.error(f"Batch prediction failed for item: {e}")
+                raise ModelLoadingError(f"Batch prediction failed: {e}")
 
         return results
