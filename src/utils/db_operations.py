@@ -1,5 +1,6 @@
 # standard library imports
 import os
+import time
 
 # third-party imports
 from dotenv import load_dotenv
@@ -59,6 +60,8 @@ def gen_pg2_con(
     return con
 
 
+con = gen_pg2_con()
+
 # ------------------------------------------------------------------------------
 # select functions
 # ------------------------------------------------------------------------------
@@ -74,32 +77,53 @@ def select_star(
     :param schema: database scheme to extract from
     :return: DataFrame of all needed training data
     """
-    con = gen_pg2_con()
+    logger.info(f"starting data retrieval from {schema}.{table}")
 
-    with con.cursor() as cursor:
-        # build query
+    try:
+        # Log connection attempt
+        logger.debug("establishing database connection")
+        con = gen_pg2_con()
+        logger.debug("database connection established successfully")
+
         query = f"SELECT * FROM {schema}.{table}"
+        logger.info(f"executing query: {query}")
 
-        logger.info(f"executing: {query}")
+        # Log before Polars read
+        logger.debug("initiating Polars read_database operation")
+        start_time = time.time()
 
-        # execute query
-        cursor.execute(query)
+        # Let Polars handle the type mapping automatically
+        df = pl.read_database(
+            query=query,
+            connection=con,
+            # Optional: override specific problematic types
+            schema_overrides={
+                # Only add these if you still have issues
+                # "column_name": pl.Int32,  # for nullable integers
+            }
+        )
 
-        # Get column names
-        columns = [desc[0] for desc in cursor.description]
+        # Log results and performance
+        elapsed_time = time.time() - start_time
+        logger.info(f"query completed in {elapsed_time:.2f} seconds")
+        logger.info(
+            f"retrieved {df.height} rows and {df.width} columns from {schema}.{table}")
+        logger.debug(f"column names: {list(df.columns)}")
+        logger.debug(f"dataframe shape: {df.shape}")
+        logger.debug(f"memory usage: ~{df.estimated_size('mb'):.1f} MB")
 
-        # Fetch all rows
-        rows = cursor.fetchall()
+    except Exception as e:
+        logger.error(f"failed to retrieve data from {schema}.{table}: {str(e)}")
+        raise
+    finally:
+        # Ensure connection is always closed
+        try:
+            con.close()
+            logger.debug("database connection closed")
+        except Exception as e:
+            logger.warning(f"error closing database connection: {str(e)}")
 
-        # Convert to dict for polars
-        data = [dict(zip(columns, row)) for row in rows]
-
-    logger.info(f"retrieved {len(data)} rows from {schema}.{table}")
-
-    df = pl.DataFrame(data)
-
-    con.close()
-
+    logger.info(f"data retrieval from {schema}.{table} completed successfully")
     return df
 
 
@@ -108,11 +132,11 @@ def select_star(
 # ------------------------------------------------------------------------------
 
 def trunc_and_load(
-        df: pl.DataFrame,
-        table_name: str,
-        schema: str = os.getenv("REEL_DRIVER_TRNG_PGSQL_SCHEMA"),
-        truncate: bool = True
-    ):
+    df: pl.DataFrame,
+    table_name: str,
+    schema: str = os.getenv("REEL_DRIVER_TRNG_PGSQL_SCHEMA"),
+    truncate: bool = True
+):
     """
     Insert DataFrame rows into specified table.
 
@@ -123,28 +147,87 @@ def trunc_and_load(
         inserting the new value
     :return: None
     """
-    logger.info(f"inserting {table_name} to db")
+    full_table_name = f"{schema}.{table_name}"
+    row_count = df.height
+    col_count = df.width
 
-    con = gen_pg2_con()
-    with con.cursor() as cur:
-        if truncate:
-            cur.execute(f"TRUNCATE TABLE {schema}.{table_name};")
+    logger.info(f"starting data load to {full_table_name}")
+    logger.info(f"dataframe shape: {row_count} rows x {col_count} columns")
+    logger.debug(f"columns to insert: {list(df.columns)}")
+    logger.debug(f"truncate mode: {'enabled' if truncate else 'disabled'}")
 
-        # Auto-generate column list and placeholders
-        columns = ", ".join(df.columns)
-        data = [tuple(row) for row in df.iter_rows()]
+    try:
+        # Log connection attempt
+        logger.debug("establishing database connection")
+        con = gen_pg2_con()
+        logger.debug("database connection established")
 
-        psycopg2.extras.execute_values(
-            cur,
-            f"INSERT INTO {schema}.{table_name} ({columns}) VALUES %s",
-            data,
-            template=None,
-            page_size=1000
-        )
+        start_time = time.time()
 
-        con.commit()
+        with con.cursor() as cur:
+            if truncate:
+                logger.info(f"truncating table {full_table_name}")
+                truncate_start = time.time()
+                cur.execute(f"TRUNCATE TABLE {full_table_name};")
+                truncate_time = time.time() - truncate_start
+                logger.debug(
+                    f"truncate completed in {truncate_time:.3f} seconds")
 
-    logger.info(f"{table_name} loaded")
+            # Auto-generate column list and placeholders
+            columns = ", ".join(df.columns)
+            logger.debug(f"preparing data conversion from DataFrame to tuples")
+
+            data_conversion_start = time.time()
+            data = [tuple(row) for row in df.iter_rows()]
+            data_conversion_time = time.time() - data_conversion_start
+            logger.debug(
+                f"data conversion completed in {data_conversion_time:.3f} seconds")
+
+            # Log insert operation
+            logger.info(f"inserting {len(data)} rows into {full_table_name}")
+            logger.debug(f"using execute_values with page_size=1000")
+
+            insert_start = time.time()
+            psycopg2.extras.execute_values(
+                cur,
+                f"INSERT INTO {full_table_name} ({columns}) VALUES %s",
+                data,
+                template=None,
+                page_size=1000
+            )
+            insert_time = time.time() - insert_start
+            logger.debug(
+                f"insert operation completed in {insert_time:.3f} seconds")
+
+            # Log commit
+            logger.debug("committing transaction")
+            commit_start = time.time()
+            con.commit()
+            commit_time = time.time() - commit_start
+            logger.debug(f"transaction committed in {commit_time:.3f} seconds")
+
+        total_time = time.time() - start_time
+        rows_per_second = row_count / total_time if total_time > 0 else 0
+
+        logger.info(f"data load to {full_table_name} completed successfully")
+        logger.info(f"total operation time: {total_time:.2f} seconds")
+        logger.info(f"throughput: {rows_per_second:.0f} rows/second")
+
+    except psycopg2.Error as e:
+        logger.error(f"database error during load to {full_table_name}: {e}")
+        logger.error(
+            f"error code: {e.pgcode if hasattr(e, 'pgcode') else 'unknown'}")
+        raise
+    except Exception as e:
+        logger.error(
+            f"unexpected error during load to {full_table_name}: {str(e)}")
+        raise
+    finally:
+        try:
+            con.close()
+            logger.debug("database connection closed")
+        except Exception as e:
+            logger.warning(f"error closing database connection: {str(e)}")
 
 
 # ------------------------------------------------------------------------------
