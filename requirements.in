@@ -10,7 +10,7 @@ pandas
 polars
 pyarrow
 python-dotenv
-psycopg2
+adbc-driver-postgresql[dbapi]
 pydantic
 pydantic-settings
 scikit-learn
