@@ -27,6 +27,9 @@ def get_router(predictor: XGBMediaPredictor):
             )
 
         try:
+            # Check for model updates before prediction
+            current_predictor.ensure_latest_model()
+            
             result = current_predictor.predict(media_input)
             return PredictionResponse(
                 imdb_id=result["imdb_id"],
@@ -55,6 +58,9 @@ def get_router(predictor: XGBMediaPredictor):
             )
 
         try:
+            # Check for model updates before batch prediction
+            current_predictor.ensure_latest_model()
+            
             results = current_predictor.predict_batch(request.items)
             return BatchPredictionResponse(results=results)
         except Exception as e:

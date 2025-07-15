@@ -392,3 +392,41 @@ class XGBMediaPredictor:
                 raise ModelLoadingError(f"Batch prediction failed: {e}")
 
         return results
+
+    def ensure_latest_model(self):
+        """
+        Check if current model is latest version and reload if needed.
+        If version check fails for any reason, continue with current model.
+        """
+        try:
+            latest_version = self.mlflow_loader.get_latest_model_version(self.model_name)
+            if latest_version != self.loaded_model_version:
+                logging.info(f"New model version {latest_version} detected (current: {self.loaded_model_version}), reloading...")
+                
+                # Store current state in case reload fails
+                old_model = self.model
+                old_version = self.loaded_model_version
+                old_features = self.feature_names
+                old_normalization = self.normalization
+                old_schema = self.engineered_schema
+                old_run_id = self.run_id
+                old_mappings = self.column_mappings
+                
+                try:
+                    # Reload model and artifacts from MLflow
+                    self._load_from_mlflow()
+                    self._init_category_mappings_from_schema()
+                    logging.info(f"Model successfully updated to version {self.loaded_model_version}")
+                except Exception as reload_error:
+                    # Restore previous state if reload fails
+                    logging.error(f"Model reload failed, reverting to previous version: {reload_error}")
+                    self.model = old_model
+                    self.loaded_model_version = old_version
+                    self.feature_names = old_features
+                    self.normalization = old_normalization
+                    self.engineered_schema = old_schema
+                    self.run_id = old_run_id
+                    self.column_mappings = old_mappings
+                    
+        except Exception as e:
+            logging.warning(f"Version check failed, continuing with current model version {self.loaded_model_version}: {e}")
