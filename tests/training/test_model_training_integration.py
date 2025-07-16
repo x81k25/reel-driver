@@ -86,10 +86,10 @@ class TestModelTrainingIntegration:
         
         try:
             # Import database utilities
-            from src.utils.db_operations import gen_pg2_con
+            from src.utils.db_operations import gen_adbc_con
             
             # Test database connection
-            with gen_pg2_con() as conn:
+            with gen_adbc_con() as conn:
                 with conn.cursor() as cursor:
                     cursor.execute("SELECT 1")
                     result = cursor.fetchone()

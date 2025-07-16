@@ -6,8 +6,7 @@ import time
 from dotenv import load_dotenv
 from loguru import logger
 import polars as pl
-import psycopg2
-import psycopg2.extras
+import adbc_driver_postgresql.dbapi as adbc
 
 # ------------------------------------------------------------------------------
 # setup and config
@@ -21,16 +20,16 @@ if os.getenv("LOCAL_DEVELOPMENT", '') == "true":
 # supporting functions
 # ------------------------------------------------------------------------------
 
-def gen_pg2_con(
+def gen_adbc_con(
     host: str = os.getenv('REEL_DRIVER_TRNG_PGSQL_HOST'),
     port: str = int(os.getenv('REEL_DRIVER_TRNG_PGSQL_PORT', 5432)),
     dbname: str = os.getenv('REEL_DRIVER_TRNG_PGSQL_DATABASE'),
     schema: str = os.getenv('REEL_DRIVER_TRNG_PGSQL_SCHEMA'),
     user: str = os.getenv('REEL_DRIVER_TRNG_PGSQL_USERNAME'),
     password: str = os.getenv('REEL_DRIVER_TRNG_PGSQL_PASSWORD')
-) -> psycopg2.connect:
+) -> adbc.Connection:
     """
-    function to create and return a psycopg2 connection object
+    function to create and return an ADBC connection object
 
     :param host: automatic-transmission database host
     :param port: automatic-transmission database port
@@ -41,26 +40,15 @@ def gen_pg2_con(
     :return:
     """
 
-    con_params = {
-        'dbname': dbname,
-        'user': user,
-        'password': password,
-        'host': host,
-        'port': port,
-    }
+    # ADBC uses URI-style connection strings
+    uri = f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
 
-    con = psycopg2.connect(
-        dbname=dbname,
-        user=user,
-        password=password,
-        host=host,
-        port=port
-    )
+    con = adbc.connect(uri)
 
     return con
 
 
-con = gen_pg2_con()
+con = gen_adbc_con()
 
 # ------------------------------------------------------------------------------
 # select functions
@@ -82,7 +70,7 @@ def select_star(
     try:
         # Log connection attempt
         logger.debug("establishing database connection")
-        con = gen_pg2_con()
+        con = gen_adbc_con()
         logger.debug("database connection established successfully")
 
         query = f"SELECT * FROM {schema}.{table}"
@@ -92,16 +80,52 @@ def select_star(
         logger.debug("initiating Polars read_database operation")
         start_time = time.time()
 
-        # Let Polars handle the type mapping automatically
+        # Get schema information to handle problematic types systematically
+        type_mapping = {}
+        if "SELECT *" in query:
+            # Get complete schema information for the table
+            with con.cursor() as cur:
+                cur.execute(f"""
+                    SELECT column_name, data_type, ordinal_position
+                    FROM information_schema.columns 
+                    WHERE table_schema = '{schema}' AND table_name = '{table}'
+                    ORDER BY ordinal_position
+                """)
+                schema_info = cur.fetchall()
+            
+            # Build type mapping and identify problematic types
+            problematic_types = {'numeric', 'decimal'}
+            cast_columns = []
+            regular_columns = []
+            
+            for col_name, data_type, position in schema_info:
+                type_mapping[col_name] = data_type
+                if data_type in problematic_types:
+                    cast_columns.append(f"CAST({col_name} AS TEXT) AS {col_name}")
+                else:
+                    cast_columns.append(col_name)
+                    regular_columns.append(col_name)
+            
+            # Reconstruct query with explicit casting for problematic types
+            if any(data_type in problematic_types for _, data_type, _ in schema_info):
+                query = f"SELECT {', '.join(cast_columns)} FROM {schema}.{table}"
+                logger.debug(f"Modified query to handle problematic types: {query}")
+                logger.debug(f"Type mapping: {type_mapping}")
+        
+        # Read the data with the modified query
         df = pl.read_database(
             query=query,
-            connection=con,
-            # Optional: override specific problematic types
-            schema_overrides={
-                # Only add these if you still have issues
-                # "column_name": pl.Int32,  # for nullable integers
-            }
+            connection=con
         )
+        
+        # Convert cast columns back to appropriate types based on original schema
+        if type_mapping:
+            for col_name, original_type in type_mapping.items():
+                if col_name in df.columns and original_type in {'numeric', 'decimal'}:
+                    logger.debug(f"Converting {col_name} from {original_type} (text) back to Float64")
+                    df = df.with_columns(
+                        pl.col(col_name).cast(pl.Float64, strict=False)
+                    )
 
         # Log results and performance
         elapsed_time = time.time() - start_time
@@ -159,7 +183,7 @@ def trunc_and_load(
     try:
         # Log connection attempt
         logger.debug("establishing database connection")
-        con = gen_pg2_con()
+        con = gen_adbc_con()
         logger.debug("database connection established")
 
         start_time = time.time()
@@ -175,6 +199,7 @@ def trunc_and_load(
 
             # Auto-generate column list and placeholders
             columns = ", ".join(df.columns)
+            placeholders = ", ".join(["$" + str(i+1) for i in range(len(df.columns))])
             logger.debug(f"preparing data conversion from DataFrame to tuples")
 
             data_conversion_start = time.time()
@@ -185,15 +210,12 @@ def trunc_and_load(
 
             # Log insert operation
             logger.info(f"inserting {len(data)} rows into {full_table_name}")
-            logger.debug(f"using execute_values with page_size=1000")
+            logger.debug(f"using executemany for batch insert")
 
             insert_start = time.time()
-            psycopg2.extras.execute_values(
-                cur,
-                f"INSERT INTO {full_table_name} ({columns}) VALUES %s",
-                data,
-                template=None,
-                page_size=1000
+            cur.executemany(
+                f"INSERT INTO {full_table_name} ({columns}) VALUES ({placeholders})",
+                data
             )
             insert_time = time.time() - insert_start
             logger.debug(
@@ -213,10 +235,8 @@ def trunc_and_load(
         logger.info(f"total operation time: {total_time:.2f} seconds")
         logger.info(f"throughput: {rows_per_second:.0f} rows/second")
 
-    except psycopg2.Error as e:
+    except adbc.DatabaseError as e:
         logger.error(f"database error during load to {full_table_name}: {e}")
-        logger.error(
-            f"error code: {e.pgcode if hasattr(e, 'pgcode') else 'unknown'}")
         raise
     except Exception as e:
         logger.error(
