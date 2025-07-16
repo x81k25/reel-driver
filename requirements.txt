@@ -285,8 +285,6 @@ numpy==2.2.5
     #   seaborn
     #   statsmodels
     #   xgboost
-nvidia-nccl-cu12==2.27.5
-    # via xgboost
 opentelemetry-api==1.32.1
     # via
     #   mlflow-skinny

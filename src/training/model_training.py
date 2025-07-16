@@ -1,6 +1,7 @@
 # internal library imports
 import json
 import os
+import re
 
 # third-party imports
 from dotenv import load_dotenv
@@ -185,20 +186,63 @@ def track_output_metrics(
 	:return: None
 	"""
 	# store the hyper-param search results themselves
-	def convert_cv_results(cv_results):
-		"""Convert cv_results to JSON-serializable format"""
-		converted = {}
-		for key, value in cv_results.items():
-			if hasattr(value, 'data'):  # masked array
-				converted[key] = value.data.tolist()
-			elif isinstance(value, np.ndarray):
-				converted[key] = value.tolist()
-			else:
-				converted[key] = value
-		return converted
+	# hyper_search_results = hyper_search.cv_results_
+	#
+	# hyper_search_results_formatted = {}
+	#
+	# for i in range(len(hyper_search_results['rank_test_score'])):
+	# 	model_run = {}
+	# 	# grab the i element of all key value paries
+	# 	for key, value in hyper_search_results.items():
+	# 		# remove duplicate param values that are already contained in params object
+	# 		if not re.search(r'param_', key):
+	# 			model_run[key] = value[i]
+	# 		# move the split test scores into a single list object
+	# 		split_test_scores = []
+	# 		for key, value in model_run.items():
+	# 			if re.search(r'split\d+_test_score', key):
+	# 				split_test_scores.append(value)
+	# 		model_run['split_test_scores'] = split_test_scores
+	# 		# remove now duplicate individual split test score items
+	# 		model_run_clean = {}
+	# 		for key, value in model_run.items():
+	# 			if not re.search(r'split\d+_test_score', key):
+	# 				model_run_clean[key] = value
+	# 	# add individual run to aggregate dict
+	# 	hyper_search_results_formatted[f"model_run_{i}"] = model_run_clean
+	#
+	# # sort by rank score
+	# sorted_keys = sorted(
+	# 	[key for key in hyper_search_results_formatted.keys() if
+	# 	 key.startswith('model_run_')],
+	# 	key=lambda x: hyper_search_results_formatted[x]['rank_test_score'],
+	# )
+	#
+	# hyper_search_results_ranked = {}
+	#
+	# for key in sorted_keys:
+	# 	hyper_search_results_ranked[key] = hyper_search_results_formatted[key]
 
-	hyper_search_results = convert_cv_results(hyper_search.cv_results_)
-	mlflow.log_dict(hyper_search_results, "hyper_search_results.json")
+	hyper_search_results = hyper_search.cv_results_
+
+	hyper_search_results_formatted = {}
+
+	for i in range(len(hyper_search_results['rank_test_score'])):
+		model_run = {}
+		split_test_score = []
+
+		for key, value in hyper_search_results.items():
+			# skip param keys, as they are already included in params{}
+			if re.search(r'param_', key):
+				continue
+
+
+
+
+
+
+
+	mlflow.log_dict(hyper_search_results_ranked, "hyper_search_results.json")
 
 	# Log best parameters
 	for param, value in hyper_search.best_params_.items():
@@ -252,7 +296,7 @@ def track_output_metrics(
 # ------------------------------------------------------------------------
 
 def xgb_hyp_op(
-	search_strategy: str = 'random',
+	search_strategy: str = 'grid',
 	random_n_iter: int = 5,
 	random_seed: int = 42
 ):
@@ -263,13 +307,13 @@ def xgb_hyp_op(
 	:param random_n_iter: number of iterations if using random search
 	:param random_state: random_state var to be passed to all functions
 	:return: None
-	:debug:
-		search_strategy = 'random'
-		random_n_iter = 5
 	"""
 	# load dotenv at the module level if running locally
 	if os.getenv("LOCAL_DEVELOPMENT", '') == "true":
 		load_dotenv(override=True)
+		search_strategy = 'random'
+		random_n_iter = 5
+		random_seed = 42
 
 	# set minio env vars
 	os.environ['MLFLOW_S3_ENDPOINT_URL'] = str(
