@@ -40,7 +40,7 @@ class XGBMediaPredictor:
         :param model_version: MLflow model version (defaults to latest)
         """
         self.model_name = model_name or settings.REEL_DRIVER_MLFLOW_MODEL
-        self.model_version = model_version or settings.REEL_DRIVER_MODEL_VERSION
+        self.model_version = model_version or settings.REEL_DRIVER_API_MODEL_VERSION
         
         try:
             # Initialize MLflow client
