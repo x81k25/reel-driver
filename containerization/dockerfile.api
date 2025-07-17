@@ -11,14 +11,14 @@ RUN apt-get update && apt-get install -y \
     && curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Add uv to PATH
-ENV PATH="/root/.cargo/bin:$PATH"
+ENV PATH="/root/.local/bin:$PATH"
 
 # Copy project files for dependency installation
 COPY pyproject.toml .
 COPY uv.lock .
 
 # Install Python dependencies using uv
-RUN /root/.cargo/bin/uv sync --frozen --no-dev
+RUN /root/.local/bin/uv sync --frozen --no-dev
 
 # Copy application code
 COPY ./app/ ./app
