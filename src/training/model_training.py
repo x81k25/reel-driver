@@ -1,6 +1,6 @@
 # internal library imports
-import json
 import os
+import re
 
 # third-party imports
 from dotenv import load_dotenv
@@ -184,21 +184,36 @@ def track_output_metrics(
 	:param y_test: label output subset
 	:return: None
 	"""
-	# store the hyper-param search results themselves
-	def convert_cv_results(cv_results):
-		"""Convert cv_results to JSON-serializable format"""
-		converted = {}
-		for key, value in cv_results.items():
-			if hasattr(value, 'data'):  # masked array
-				converted[key] = value.data.tolist()
-			elif isinstance(value, np.ndarray):
-				converted[key] = value.tolist()
-			else:
-				converted[key] = value
-		return converted
+	# Store the hyper-param search results
+	hyper_search_results = hyper_search.cv_results_
 
-	hyper_search_results = convert_cv_results(hyper_search.cv_results_)
-	mlflow.log_dict(hyper_search_results, "hyper_search_results.json")
+	hyper_search_results_formatted = {}
+
+	for i in range(len(hyper_search_results['rank_test_score'])):
+		model_run = {}
+		split_test_scores = []
+
+		# Single loop through all key-value pairs
+		for key, value in hyper_search_results.items():
+			if re.search(r'param_', key):
+				continue  # Skip param_ keys
+			elif re.search(r'split\d+_test_score', key):
+				split_test_scores.append(value[i])
+			else:
+				model_run[key] = value[i]
+
+		model_run['split_test_scores'] = split_test_scores
+		hyper_search_results_formatted[f"model_run_{i}"] = model_run
+
+	# Sort by rank score and create final dict
+	sorted_keys = sorted(
+		hyper_search_results_formatted.keys(),
+		key=lambda x: hyper_search_results_formatted[x]['rank_test_score']
+	)
+
+	hyper_search_results_ranked = {key: hyper_search_results_formatted[key] for key in sorted_keys}
+
+	mlflow.log_dict(hyper_search_results_ranked, "hyper_search_results.json")
 
 	# Log best parameters
 	for param, value in hyper_search.best_params_.items():
@@ -252,7 +267,7 @@ def track_output_metrics(
 # ------------------------------------------------------------------------
 
 def xgb_hyp_op(
-	search_strategy: str = 'random',
+	search_strategy: str = os.getenv('REEL_DRIVER_TRNG_HYPER_PARAM_SEARCH_STRAT', 'random'),
 	random_n_iter: int = 5,
 	random_seed: int = 42
 ):
@@ -261,15 +276,15 @@ def xgb_hyp_op(
 
 	:param search_strategy: either 'random' or 'grid'
 	:param random_n_iter: number of iterations if using random search
-	:param random_state: random_state var to be passed to all functions
+	:param random_seed: random_state var to be passed to all functions
 	:return: None
-	:debug:
-		search_strategy = 'random'
-		random_n_iter = 5
 	"""
 	# load dotenv at the module level if running locally
 	if os.getenv("LOCAL_DEVELOPMENT", '') == "true":
 		load_dotenv(override=True)
+		search_strategy = 'random'
+		random_n_iter = 5
+		random_seed = 42
 
 	# set minio env vars
 	os.environ['MLFLOW_S3_ENDPOINT_URL'] = str(
@@ -311,12 +326,8 @@ def xgb_hyp_op(
 	# Start MLflow run
 	with mlflow.start_run(run_name="xgboost_grid_search"):
 
-		# if running locally enter training notes
-		if os.getenv("LOCAL_DEVELOPMENT", '') == "true":
-			notes = input("Enter notes for this model run: ")
-		else:
-			notes = "automated training run"
-
+		# enter notes
+		notes = "automated training run"
 		mlflow.set_tag("notes", notes)
 
 		# store all input model values in MLFlow
@@ -382,12 +393,16 @@ def xgb_hyp_op(
 		full_model = xgb.XGBClassifier(**best_params)
 		full_model.fit(X, y)
 
+		# run predictions on full data set
+		y_pred = full_model.predict(X)
+
 		# Use a small sample for signature inference
 		signature = infer_signature(
-			X.head(10),
-			full_model.predict(X.head(10))
+			X,
+			y_pred
 		)
 
+		# store model
 		mlflow.sklearn.log_model(
 			sk_model=full_model,
 			artifact_path="model",
@@ -401,12 +416,12 @@ def xgb_hyp_op(
 		# Save normalization table and engineered schema as JSON artifacts (in-memory)
 		mlflow.log_dict(
 			normalization_table.to_pandas().to_dict(orient='records'),
-			"model-artifacts/engineered_normalization_table.json"
+			"engineered_normalization_table.json"
 		)
 		
 		mlflow.log_dict(
 			engineered_schema.to_pandas().to_dict(orient='records'),
-			"model-artifacts/engineered_schema.json"
+			"engineered_schema.json"
 		)
 
 		logger.info('normalization table and engineered schema saved as MLflow artifacts')
@@ -418,3 +433,4 @@ def __main__():
 # -----------------------------------------------------------------------------
 # end of _03_xgb_binomial_classifier_build_model.py
 # -----------------------------------------------------------------------------
+

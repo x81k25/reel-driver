@@ -155,7 +155,7 @@ class MLflowModelLoader:
             # Download normalization table artifact to temp directory
             try:
                 normalization_artifact_path = self.client.download_artifacts(
-                    run_id, "model-artifacts/engineered_normalization_table.json", temp_dir
+                    run_id, "engineered_normalization_table.json", temp_dir
                 )
                 
                 with open(normalization_artifact_path, 'r') as f:
@@ -174,7 +174,7 @@ class MLflowModelLoader:
             # Download engineered schema artifact
             try:
                 schema_artifact_path = self.client.download_artifacts(
-                    run_id, "model-artifacts/engineered_schema.json", temp_dir
+                    run_id, "engineered_schema.json", temp_dir
                 )
                 
                 with open(schema_artifact_path, 'r') as f:
