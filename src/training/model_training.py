@@ -305,7 +305,7 @@ def track_output_metrics(
 # ------------------------------------------------------------------------
 
 def xgb_hyp_op(
-	search_strategy: str = 'grid',
+	search_strategy: str = os.getenv('REEL_DRIVER_TRNG_HYPER_PARAM_SEACH_STRAT', 'random'),
 	random_n_iter: int = 5,
 	random_seed: int = 42
 ):
