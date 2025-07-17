@@ -18,7 +18,7 @@ COPY pyproject.toml .
 COPY uv.lock .
 
 # Install Python dependencies using uv
-RUN uv sync --frozen --no-dev
+RUN /root/.cargo/bin/uv sync --frozen --no-dev
 
 # Copy application code
 COPY ./app/ ./app
