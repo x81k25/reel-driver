@@ -184,44 +184,6 @@ def track_output_metrics(
 	:param y_test: label output subset
 	:return: None
 	"""
-	# store the hyper-param search results themselves
-	# hyper_search_results = hyper_search.cv_results_
-	#
-	# hyper_search_results_formatted = {}
-	#
-	# for i in range(len(hyper_search_results['rank_test_score'])):
-	# 	model_run = {}
-	# 	# grab the i element of all key value paries
-	# 	for key, value in hyper_search_results.items():
-	# 		# remove duplicate param values that are already contained in params object
-	# 		if not re.search(r'param_', key):
-	# 			model_run[key] = value[i]
-	# 		# move the split test scores into a single list object
-	# 		split_test_scores = []
-	# 		for key, value in model_run.items():
-	# 			if re.search(r'split\d+_test_score', key):
-	# 				split_test_scores.append(value)
-	# 		model_run['split_test_scores'] = split_test_scores
-	# 		# remove now duplicate individual split test score items
-	# 		model_run_clean = {}
-	# 		for key, value in model_run.items():
-	# 			if not re.search(r'split\d+_test_score', key):
-	# 				model_run_clean[key] = value
-	# 	# add individual run to aggregate dict
-	# 	hyper_search_results_formatted[f"model_run_{i}"] = model_run_clean
-	#
-	# # sort by rank score
-	# sorted_keys = sorted(
-	# 	[key for key in hyper_search_results_formatted.keys() if
-	# 	 key.startswith('model_run_')],
-	# 	key=lambda x: hyper_search_results_formatted[x]['rank_test_score'],
-	# )
-	#
-	# hyper_search_results_ranked = {}
-	#
-	# for key in sorted_keys:
-	# 	hyper_search_results_ranked[key] = hyper_search_results_formatted[key]
-
 	# Store the hyper-param search results
 	hyper_search_results = hyper_search.cv_results_
 
@@ -305,7 +267,7 @@ def track_output_metrics(
 # ------------------------------------------------------------------------
 
 def xgb_hyp_op(
-	search_strategy: str = os.getenv('REEL_DRIVER_TRNG_HYPER_PARAM_SEACH_STRAT', 'random'),
+	search_strategy: str = os.getenv('REEL_DRIVER_TRNG_HYPER_PARAM_SEARCH_STRAT', 'random'),
 	random_n_iter: int = 5,
 	random_seed: int = 42
 ):
