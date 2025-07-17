@@ -395,12 +395,21 @@ def xgb_hyp_op(
 
 		# run predictions on full data set
 		y_pred = full_model.predict(X)
+		y_pred_proba = full_model.predict_proba(X)
 
-		# Use a small sample for signature inference
-		signature = infer_signature(
-			X,
-			y_pred
-		)
+
+
+		# create model signature
+		if len(X) < 1000:
+			signature = infer_signature(
+				X,
+				y_pred
+			)
+		else:
+			signature = infer_signature(
+				X.head(1000),
+				y_pred[:1000]
+			)
 
 		# store model
 		mlflow.sklearn.log_model(
@@ -425,6 +434,31 @@ def xgb_hyp_op(
 		)
 
 		logger.info('normalization table and engineered schema saved as MLflow artifacts')
+
+		# create atp.prediction dataframe
+		prediction = pl.DataFrame({
+			'imdb_id': X.index,
+			'prediction': y_pred,
+			'probability': y_pred_proba[:, 1],
+			'actual': y
+		}).with_columns(
+			cm_value = pl.when(pl.col('prediction') == 1)
+				.then(
+					pl.when(pl.col('actual') == 1)
+						.then(pl.lit("tp"))
+						.otherwise(pl.lit("fp"))
+				).otherwise(
+					pl.when(pl.col('actual') == 0)
+						.then(pl.lit("tn"))
+					.otherwise(pl.lit("fn"))
+				)
+		).drop('actual')
+
+		# add full prediction table to db
+		utils.trunc_and_load(
+			df=prediction,
+			table_name="prediction"
+		)
 
 # main guard
 def __main__():
