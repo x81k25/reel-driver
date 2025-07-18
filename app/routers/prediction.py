@@ -19,12 +19,23 @@ def get_router(predictor: XGBMediaPredictor):
         
         # Use current global predictor instead of captured predictor for test isolation
         from app.main import predictor as current_predictor
+        import app.main as main_module
 
         if current_predictor is None:
-            raise HTTPException(
-                status_code=503, 
-                detail="Model not loaded - MLflow connection failed or model not found. Check MLflow server status and model registry."
-            )
+            # Attempt to reinitialize predictor if it's None
+            logger.info("Predictor is None, attempting to reinitialize...")
+            try:
+                from app.services.predictor import XGBMediaPredictor
+                new_predictor = XGBMediaPredictor()
+                main_module.predictor = new_predictor
+                current_predictor = new_predictor
+                logger.info(f"Predictor successfully reinitialized with model v{new_predictor.loaded_model_version}")
+            except Exception as reinit_error:
+                logger.error(f"Failed to reinitialize predictor: {reinit_error}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Model not loaded - MLflow connection failed or model not found. Check MLflow server status and model registry."
+                )
 
         try:
             # Check for model updates before prediction
@@ -48,14 +59,24 @@ def get_router(predictor: XGBMediaPredictor):
         
         # Use current global predictor instead of captured predictor for test isolation
         from app.main import predictor as current_predictor
+        import app.main as main_module
         logger.info(f"Predictor is None: {current_predictor is None}")
 
         if current_predictor is None:
-            logger.error("Model not loaded in batch prediction")
-            raise HTTPException(
-                status_code=503, 
-                detail="Model not loaded - MLflow connection failed or model not found. Check MLflow server status and model registry."
-            )
+            # Attempt to reinitialize predictor if it's None
+            logger.info("Predictor is None in batch prediction, attempting to reinitialize...")
+            try:
+                from app.services.predictor import XGBMediaPredictor
+                new_predictor = XGBMediaPredictor()
+                main_module.predictor = new_predictor
+                current_predictor = new_predictor
+                logger.info(f"Predictor successfully reinitialized with model v{new_predictor.loaded_model_version}")
+            except Exception as reinit_error:
+                logger.error(f"Failed to reinitialize predictor in batch prediction: {reinit_error}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Model not loaded - MLflow connection failed or model not found. Check MLflow server status and model registry."
+                )
 
         try:
             # Check for model updates before batch prediction
