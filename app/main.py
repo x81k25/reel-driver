@@ -10,7 +10,12 @@ from fastapi.responses import JSONResponse
 import uvicorn.logging
 
 # custom/local imports
-from app.services.predictor import XGBMediaPredictor
+from app.services.predictor import XGBMediaPredictor, ModelLoadingError
+from app.services.mlflow_client import (
+    MLflowConnectionError, 
+    MLflowModelNotFoundError, 
+    MLflowArtifactError
+)
 from app.core.config import settings
 
 # Load environment variables
@@ -25,9 +30,40 @@ predictor = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global predictor
-    # Load model first
-    predictor = XGBMediaPredictor(artifacts_path=settings.MODEL_PATH)
-    logger.info("Model loaded successfully")
+    
+    # Check if we're in test mode by looking for a test marker
+    test_mode = getattr(app.state, 'test_mode', False)
+    
+    if not test_mode and predictor is None:
+        # Load model from MLflow in production mode
+        try:
+            predictor = XGBMediaPredictor()
+            logger.info(f"Model {predictor.model_name} v{predictor.loaded_model_version} loaded successfully from MLflow")
+        except MLflowConnectionError as e:
+            logger.error(f"MLflow connection failed during startup: {e}")
+            # Don't raise - let the app start but health checks will fail
+            predictor = None
+        except MLflowModelNotFoundError as e:
+            logger.error(f"MLflow model not found during startup: {e}")
+            # Don't raise - let the app start but health checks will fail
+            predictor = None
+        except MLflowArtifactError as e:
+            logger.error(f"MLflow artifacts failed during startup: {e}")
+            # Don't raise - let the app start but health checks will fail
+            predictor = None
+        except ModelLoadingError as e:
+            logger.error(f"Model loading failed during startup: {e}")
+            # Don't raise - let the app start but health checks will fail
+            predictor = None
+        except Exception as e:
+            logger.error(f"Unexpected error during model loading: {e}")
+            # Don't raise - let the app start but health checks will fail
+            predictor = None
+    else:
+        if test_mode:
+            logger.info("Running in test mode - using test predictor configuration")
+        else:
+            logger.info("Using existing predictor")
 
     # Include router AFTER predictor is loaded
     from app.routers import prediction
@@ -71,6 +107,54 @@ async def http_exception_handler(request, exc):
         content={"message": exc.detail},
     )
 
+@app.exception_handler(MLflowConnectionError)
+async def mlflow_connection_exception_handler(request, exc):
+    logger.error(f"MLflow connection error: {exc}")
+    return JSONResponse(
+        status_code=503,
+        content={
+            "message": "MLflow service unavailable - cannot connect to MLflow server",
+            "details": str(exc),
+            "service": "mlflow"
+        },
+    )
+
+@app.exception_handler(MLflowModelNotFoundError)
+async def mlflow_model_not_found_exception_handler(request, exc):
+    logger.error(f"MLflow model not found: {exc}")
+    return JSONResponse(
+        status_code=404,
+        content={
+            "message": "Model not found in MLflow registry",
+            "details": str(exc),
+            "service": "mlflow"
+        },
+    )
+
+@app.exception_handler(MLflowArtifactError)
+async def mlflow_artifact_exception_handler(request, exc):
+    logger.error(f"MLflow artifact error: {exc}")
+    return JSONResponse(
+        status_code=503,
+        content={
+            "message": "MLflow model artifacts unavailable - cannot download required model files",
+            "details": str(exc),
+            "service": "mlflow"
+        },
+    )
+
+@app.exception_handler(ModelLoadingError)
+async def model_loading_exception_handler(request, exc):
+    logger.error(f"Model loading error: {exc}")
+    return JSONResponse(
+        status_code=503,
+        content={
+            "message": "Model loading failed - check MLflow connectivity and model artifacts",
+            "details": str(exc),
+            "service": "model"
+        },
+    )
+
 @app.exception_handler(Exception)
 async def general_exception_handler(request, exc):
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
@@ -84,22 +168,52 @@ async def general_exception_handler(request, exc):
 async def health_check():
     """Health check endpoint."""
     if predictor is None:
-        raise HTTPException(status_code=503, detail="Model not loaded")
+        raise HTTPException(
+            status_code=503, 
+            detail="Model not loaded - MLflow connection failed or model not found. Check MLflow server status and model registry."
+        )
 
-    # Additional health checks for model artifacts
+    # Additional health checks for MLflow model artifacts
     try:
         if not hasattr(predictor, 'feature_names') or not predictor.feature_names:
-            raise HTTPException(status_code=503, detail="Model features not properly loaded")
+            raise HTTPException(
+                status_code=503, 
+                detail="Model features not properly loaded - check MLflow model artifacts"
+            )
         if not hasattr(predictor, 'normalization') or not predictor.normalization:
-            raise HTTPException(status_code=503, detail="Normalization parameters not loaded")
+            raise HTTPException(
+                status_code=503, 
+                detail="Normalization parameters not loaded - check MLflow model artifacts"
+            )
+        if not hasattr(predictor, 'engineered_schema') or not predictor.engineered_schema:
+            raise HTTPException(
+                status_code=503, 
+                detail="Engineered schema not loaded - check MLflow model artifacts"
+            )
+        if not hasattr(predictor, 'model') or predictor.model is None:
+            raise HTTPException(
+                status_code=503, 
+                detail="XGBoost model not loaded - check MLflow model registry"
+            )
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        raise HTTPException(status_code=503, detail="Model health check failed")
+        raise HTTPException(
+            status_code=503, 
+            detail="Model health check failed - check MLflow connectivity and model artifacts"
+        )
 
     return {
         "status": "healthy",
-        "model_features": len(predictor.feature_names),
-        "normalization_fields": len(predictor.normalization)
+        "model_name": predictor.model_name,
+        "model_version": predictor.loaded_model_version,
+        "run_id": predictor.run_id,
+        "features_count": len(predictor.feature_names),
+        "normalization_fields": len(predictor.normalization),
+        "schema_mappings": len(predictor.engineered_schema),
+        "genre_categories": len(predictor.genres),
+        "origin_countries": len(predictor.origin_countries),
+        "production_countries": len(predictor.production_countries),
+        "spoken_languages": len(predictor.spoken_languages)
     }
 
 # Root endpoint
@@ -143,7 +257,7 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "app.main:app",
-        host=os.getenv("API_HOST", "0.0.0.0"),
-        port=int(os.getenv("API_PORT", "8000")),
+        host=settings.REEL_DRIVER_API_HOST,
+        port=settings.REEL_DRIVER_API_PORT,
         reload=True
     )

@@ -1,0 +1,5 @@
+ARG BASE_IMAGE=ghcr.io/username/reel-driver-dev/training-base:latest
+FROM ${BASE_IMAGE}
+
+# Set the entrypoint to run model training
+ENTRYPOINT ["python", "-c", "from src.training.model_training import __main__; __main__()"]

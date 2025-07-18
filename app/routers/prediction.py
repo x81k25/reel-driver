@@ -16,12 +16,32 @@ def get_router(predictor: XGBMediaPredictor):
     @router.post("/predict")
     async def predict(media_input: MediaPredictionInput):
         logger.info("prediction request received")
+        
+        # Use current global predictor instead of captured predictor for test isolation
+        from app.main import predictor as current_predictor
+        import app.main as main_module
 
-        if predictor is None:
-            raise HTTPException(status_code=503, detail="Model not loaded")
+        if current_predictor is None:
+            # Attempt to reinitialize predictor if it's None
+            logger.info("Predictor is None, attempting to reinitialize...")
+            try:
+                from app.services.predictor import XGBMediaPredictor
+                new_predictor = XGBMediaPredictor()
+                main_module.predictor = new_predictor
+                current_predictor = new_predictor
+                logger.info(f"Predictor successfully reinitialized with model v{new_predictor.loaded_model_version}")
+            except Exception as reinit_error:
+                logger.error(f"Failed to reinitialize predictor: {reinit_error}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Model not loaded - MLflow connection failed or model not found. Check MLflow server status and model registry."
+                )
 
         try:
-            result = predictor.predict(media_input)
+            # Check for model updates before prediction
+            current_predictor.ensure_latest_model()
+            
+            result = current_predictor.predict(media_input)
             return PredictionResponse(
                 imdb_id=result["imdb_id"],
                 prediction=result["prediction"],
@@ -36,14 +56,33 @@ def get_router(predictor: XGBMediaPredictor):
         Predict whether user would watch each media item in a batch.
         """
         logger.info("Batch prediction request received")
-        logger.info(f"Predictor is None: {predictor is None}")
+        
+        # Use current global predictor instead of captured predictor for test isolation
+        from app.main import predictor as current_predictor
+        import app.main as main_module
+        logger.info(f"Predictor is None: {current_predictor is None}")
 
-        if predictor is None:
-            logger.error("Model not loaded in batch prediction")
-            raise HTTPException(status_code=503, detail="Model not loaded")
+        if current_predictor is None:
+            # Attempt to reinitialize predictor if it's None
+            logger.info("Predictor is None in batch prediction, attempting to reinitialize...")
+            try:
+                from app.services.predictor import XGBMediaPredictor
+                new_predictor = XGBMediaPredictor()
+                main_module.predictor = new_predictor
+                current_predictor = new_predictor
+                logger.info(f"Predictor successfully reinitialized with model v{new_predictor.loaded_model_version}")
+            except Exception as reinit_error:
+                logger.error(f"Failed to reinitialize predictor in batch prediction: {reinit_error}")
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Model not loaded - MLflow connection failed or model not found. Check MLflow server status and model registry."
+                )
 
         try:
-            results = predictor.predict_batch(request.items)
+            # Check for model updates before batch prediction
+            current_predictor.ensure_latest_model()
+            
+            results = current_predictor.predict_batch(request.items)
             return BatchPredictionResponse(results=results)
         except Exception as e:
             logger.error(f"Batch prediction error: {str(e)}", exc_info=True)
