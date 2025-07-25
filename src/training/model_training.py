@@ -5,6 +5,19 @@ import re
 # third-party imports
 from dotenv import load_dotenv
 from loguru import logger
+
+# Enable cuML acceleration FIRST
+if os.getenv('USE_CUML_ACCEL', 'true').lower() == 'true':
+    try:
+        from cuml.accel import install
+        install()
+        logger.info("cuML GPU acceleration enabled")
+    except ImportError:
+        logger.warning("cuML not available, using CPU-only execution")
+else:
+    logger.info("cuML acceleration disabled via environment variable")
+
+# Continue with other imports AFTER cuML activation
 import mlflow
 from mlflow.models.signature import infer_signature
 import numpy as np
@@ -283,7 +296,7 @@ def xgb_hyp_op(
 	if os.getenv("LOCAL_DEVELOPMENT", '') == "true":
 		load_dotenv(override=True)
 		search_strategy = 'random'
-		random_n_iter = 5
+		random_n_iter = 1000
 		random_seed = 42
 
 	# set minio env vars
@@ -336,7 +349,8 @@ def xgb_hyp_op(
 		# define model
 		model = xgb.XGBClassifier(
 			objective='binary:logistic',
-			enable_categorical=True
+			enable_categorical=True,
+			device='cuda'
 		)
 
 		# Define parameter grid
