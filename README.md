@@ -45,8 +45,8 @@ reel-driver/
 │   └── dockerfile.api               # API service image
 ├── data/                           # Training data artifacts
 ├── notebooks/                      # Jupyter notebooks for analysis
-├── requirements.in                 # Input file for dependency management
-├── requirements.txt               # Generated dependencies with pinned versions
+├── pyproject.toml                  # Project configuration and dependencies
+├── uv.lock                        # Locked dependencies for reproducible builds
 └── CLAUDE.md                      # Detailed technical documentation
 ```
 
@@ -90,18 +90,29 @@ LOCAL_DEVELOPMENT=true  # Set to 'true' for local development
 
 ### Installation
 
-This project uses `uv` for dependency management:
+This project uses `uv` for dependency management with modular dependencies:
 
 ```bash
 # Create and activate a virtual environment
 python -m venv .venv
 source .venv/bin/activate
 
-# Install dependencies using uv
-uv pip install -r requirements.txt
+# Install dependencies based on your needs:
 
-# For development changes, regenerate requirements.txt
-uv pip compile requirements.in -o requirements.txt
+# For API development/deployment
+uv sync --extra api
+
+# For feature engineering
+uv sync --extra feature-engineering
+
+# For model training
+uv sync --extra model-training
+
+# For running tests (includes dev dependencies)
+uv sync
+
+# For development with all extras
+uv sync --all-extras
 ```
 
 ## Testing
