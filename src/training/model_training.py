@@ -8,10 +8,14 @@ from loguru import logger
 import mlflow
 from mlflow.models.signature import infer_signature
 import numpy as np
+import optuna
+from optuna.integration import XGBoostPruningCallback
+from optuna.pruners import MedianPruner
+from optuna.samplers import TPESampler
 import pandas as pd
 import polars as pl
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix
-from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV, StratifiedKFold
+from sklearn.model_selection import train_test_split, StratifiedKFold
 import xgboost as xgb
 
 # custom/internal imports
@@ -95,7 +99,7 @@ def prep_engineered(
 
 
 def data_split(
-	df: pd.DataFrame,
+	pdf: pd.DataFrame,
 	split_size: float = 0.2,
 	random_state: int = 42
 ) -> tuple[
@@ -109,7 +113,7 @@ def data_split(
 	"""
 	take full df and performs test/train/val split based off of size param
 
-	:param df: whole dataset including the label column
+	:param pdf: whole dataset including the label column
 	:param split_size: the size in decimal percentage of the training and
 		the validation samples
 	:param random_state: random state param for reproducibility
@@ -122,11 +126,11 @@ def data_split(
 		y_test Series
 	]
 	"""
-	df_split = df.copy()
+	pdf_split = pdf.copy()
 
 	# features/label split
-	X = df_split.drop('label', axis=1)
-	y = df_split['label']
+	X = pdf_split.drop('label', axis=1)
+	y = pdf_split['label']
 
 	# train/test split
 	X_train, X_test, y_train, y_test = train_test_split(
@@ -171,61 +175,129 @@ def track_input_metrics(
 	return
 
 
+def optuna_objective(
+	trial: optuna.trial.Trial,
+	X_train: pd.DataFrame,
+	y_train: pd.Series,
+	random_seed: int = 42
+) -> float:
+	"""
+	Optuna objective function for XGBoost hyperparameter optimization
+
+	:param trial: Optuna trial object for parameter suggestions
+	:param X_train: training features
+	:param y_train: training labels
+	:param random_seed: random state for reproducibility
+	:return: mean CV score (f1) to maximize
+	"""
+
+	# Suggest hyperparameters - full ranges for exploration
+	params = {
+		'objective': 'binary:logistic',
+		'enable_categorical': True,
+		'random_state': random_seed,
+		'scale_pos_weight': trial.suggest_int('scale_pos_weight', 1, 15),
+		'max_depth': trial.suggest_int('max_depth', 3, 7),
+		'n_estimators': trial.suggest_int('n_estimators', 50, 200, step=25),
+		'min_child_weight': trial.suggest_int('min_child_weight', 1, 5),
+		'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.2,
+											 log=True),
+		'gamma': trial.suggest_float('gamma', 0, 0.2),
+		'reg_alpha': trial.suggest_float('reg_alpha', 1e-8, 1.0, log=True),
+		'subsample': trial.suggest_float('subsample', 0.8, 1.0),
+		'max_delta_step': trial.suggest_int('max_delta_step', 0, 5),
+		'colsample_bytree': trial.suggest_float('colsample_bytree', 0.8, 1.0),
+		'colsample_bylevel': trial.suggest_float('colsample_bylevel', 0.8, 1.0)
+	}
+
+	# Setup cross-validation with pruning
+	cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_seed)
+	scores = []
+
+	for fold, (train_idx, val_idx) in enumerate(cv.split(X_train, y_train)):
+		X_fold_train, X_fold_val = X_train.iloc[train_idx], X_train.iloc[
+			val_idx]
+		y_fold_train, y_fold_val = y_train.iloc[train_idx], y_train.iloc[
+			val_idx]
+
+		# Create model with pruning callback
+		model = xgb.XGBClassifier(**params)
+
+		# Add pruning callback
+		pruning_callback = XGBoostPruningCallback(trial, f'validation_{fold}')
+
+		model.fit(
+			X_fold_train, y_fold_train,
+			eval_set=[(X_fold_val, y_fold_val)],
+			verbose=False
+		)
+
+		# Get predictions and calculate F1 score
+		y_pred = model.predict(X_fold_val)
+		fold_score = f1_score(y_fold_val, y_pred)
+		scores.append(fold_score)
+
+		# Report intermediate score for pruning decision
+		trial.report(fold_score, fold)
+
+		# Check if trial should be pruned (after 2 poor folds as requested)
+		if fold >= 1 and trial.should_prune():
+			raise optuna.TrialPruned()
+
+	return np.mean(scores)
+
+
 def track_output_metrics(
-	hyper_search,
+	study: optuna.study.Study,
+	model: xgb.XGBClassifier,
 	X_test: pd.DataFrame,
 	y_test: pd.Series
 ):
 	"""
 	generates all relevant model output metrics and logs in MLflow
 
-	:param hyper_search: full hyperparameters search object
+	:param study: Optuna study object with optimization results
+	:param model: trained XGBoost model
 	:param X_test: test features
 	:param y_test: label output subset
 	:return: None
 	"""
-	# Store the hyper-param search results
-	hyper_search_results = hyper_search.cv_results_
 
-	hyper_search_results_formatted = {}
+	# Log Optuna study results
+	study_results = {
+		'best_trial_number': study.best_trial.number,
+		'best_value': study.best_value,
+		'best_params': study.best_params,
+		'n_trials': len(study.trials),
+		'n_complete_trials': len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]),
+		'n_pruned_trials': len([t for t in study.trials if t.state == optuna.trial.TrialState.PRUNED])
+	}
 
-	for i in range(len(hyper_search_results['rank_test_score'])):
-		model_run = {}
-		split_test_scores = []
+	mlflow.log_dict(study_results, "optuna_study_summary.json")
 
-		# Single loop through all key-value pairs
-		for key, value in hyper_search_results.items():
-			if re.search(r'param_', key):
-				continue  # Skip param_ keys
-			elif re.search(r'split\d+_test_score', key):
-				split_test_scores.append(value[i])
-			else:
-				model_run[key] = value[i]
+	# Log detailed trial results
+	trials_df = study.trials_dataframe()
+	if not trials_df.empty:
+		mlflow.log_dict(trials_df.to_dict(orient='records'), "optuna_trials_detailed.json")
 
-		model_run['split_test_scores'] = split_test_scores
-		hyper_search_results_formatted[f"model_run_{i}"] = model_run
+	# Log parameter importance if available
+	try:
+		param_importance = optuna.importance.get_param_importances(study)
+		mlflow.log_dict(param_importance, "optuna_param_importance.json")
+	except Exception as e:
+		logger.warning(f"Could not calculate parameter importance: {e}")
 
-	# Sort by rank score and create final dict
-	sorted_keys = sorted(
-		hyper_search_results_formatted.keys(),
-		key=lambda x: hyper_search_results_formatted[x]['rank_test_score']
-	)
-
-	hyper_search_results_ranked = {key: hyper_search_results_formatted[key] for key in sorted_keys}
-
-	mlflow.log_dict(hyper_search_results_ranked, "hyper_search_results.json")
-
-	# Log best parameters
-	for param, value in hyper_search.best_params_.items():
+	# Log best parameters as MLflow params
+	for param, value in study.best_params.items():
 		mlflow.log_param(param, value)
-	logger.info(f"Best params: {hyper_search.best_params_}")
 
-	# generate est model from hyper_search
-	best_model = hyper_search.best_estimator_
+	logger.info(f"Best trial: {study.best_trial.number}")
+	logger.info(f"Best F1 score: {study.best_value:.4f}")
+	logger.info(f"Best params: {study.best_params}")
 
-	# generate predictions
-	y_pred = best_model.predict(X_test)
-	y_pred_proba = best_model.predict_proba(X_test)[:, 1]
+	# Generate predictions using the trained model
+	y_pred = model.predict(X_test)
+	y_pred_proba = model.predict_proba(X_test)[:, 1]
 
 	# Calculate metrics
 	if len(np.unique(y_test)) > 1:
@@ -262,42 +334,34 @@ def track_output_metrics(
 
 	return
 
+
 # ------------------------------------------------------------------------
 # primary function
 # ------------------------------------------------------------------------
 
 def xgb_hyp_op(
-	search_strategy: str = os.getenv('REEL_DRIVER_TRNG_HYPER_PARAM_SEARCH_STRAT', 'random'),
-	random_n_iter: int = 5,
 	random_seed: int = 42
 ):
 	"""
 	end-to-end stateless hyperparameter optimization service
 
-	:param search_strategy: either 'random' or 'grid'
-	:param random_n_iter: number of iterations if using random search
 	:param random_seed: random_state var to be passed to all functions
 	:return: None
 	"""
 	# load dotenv at the module level if running locally
 	if os.getenv("LOCAL_DEVELOPMENT", '') == "true":
 		load_dotenv(override=True)
-		search_strategy = 'random'
-		random_n_iter = 5
 		random_seed = 42
-
-	# set minio env vars
-	os.environ['MLFLOW_S3_ENDPOINT_URL'] = str(
-		os.environ['REEL_DRIVER_MINIO_ENDPOINT'] +
-		":" +
-		os.environ['REEL_DRIVER_MINIO_PORT']
-	)
-
-	os.environ['AWS_ACCESS_KEY_ID'] = os.environ['REEL_DRIVER_MINIO_ACCESS_KEY']
-	os.environ['AWS_SECRET_ACCESS_KEY'] = os.environ['REEL_DRIVER_MINIO_SECRET_KEY']
 
 	# set random seeds
 	np.random.seed(random_seed)
+
+	# set minio env vars
+	os.environ['MLFLOW_S3_ENDPOINT_URL'] = str(
+		os.environ['REEL_DRIVER_MINIO_ENDPOINT'] + ":" + os.environ['REEL_DRIVER_MINIO_PORT']
+	)
+	os.environ['AWS_ACCESS_KEY_ID'] = os.environ['REEL_DRIVER_MINIO_ACCESS_KEY']
+	os.environ['AWS_SECRET_ACCESS_KEY'] = os.environ['REEL_DRIVER_MINIO_SECRET_KEY']
 
 	# connect to k8s mlflow service
 	mlflow_uri = "http://" + os.getenv('REEL_DRIVER_MLFLOW_HOST') + ":" + os.getenv('REEL_DRIVER_MLFLOW_PORT')
@@ -321,10 +385,14 @@ def xgb_hyp_op(
 	pdf = prep_engineered(df=df)
 
 	# split
-	X, X_train, X_test, y, y_train, y_test = data_split(pdf, random_seed)
+	X, X_train, X_test, y, y_train, y_test = data_split(
+		pdf=pdf,
+		split_size=0.2,
+		random_state=random_seed
+	)
 
 	# Start MLflow run
-	with mlflow.start_run(run_name="xgboost_grid_search"):
+	with mlflow.start_run(run_name="xgboost_optuna_search"):
 
 		# enter notes
 		notes = "automated training run"
@@ -333,71 +401,58 @@ def xgb_hyp_op(
 		# store all input model values in MLFlow
 		track_input_metrics(X, X_train, X_test)
 
-		# define model
-		model = xgb.XGBClassifier(
-			objective='binary:logistic',
-			enable_categorical=True
+		# Setup Optuna study with medium pruning
+		sampler = TPESampler(seed=random_seed, n_startup_trials=20)
+		pruner = MedianPruner(n_startup_trials=10, n_warmup_steps=1,
+							  interval_steps=1)
+
+		study = optuna.create_study(
+			direction='maximize',
+			sampler=sampler,
+			pruner=pruner,
+			study_name=f"xgboost_optimization_{random_seed}"
 		)
 
-		# Define parameter grid
-		param_grid = {
-			'scale_pos_weight': [1, 5, 9, 15],
-			'max_depth': [3, 5, 7],
-			'n_estimators': [50, 100, 200],
-			'min_child_weight': [1 ,3, 5],
-			'learning_rate': [0.01, 0.1, 0.2],
-			'gamma': [0, 0.1, 0.2],
-			'reg_alpha': [0, 0.01, 0.1, 1.0],
-			'subsample': [0.8, 1.0],
-			'max_delta_step': [0, 1, 5],
-			'colsample_bytree': [0.8, 1.0],
-			'colsample_bylevel': [0.8, 1.0],
-			'random_state': [42],
-			'enable_categorical': [True]
-		}
+		logger.info(
+			"Starting Optuna hyperparameter optimization with 200 trials")
 
-		# select search strategy
-		if search_strategy == "grid":
-			hyper_search = GridSearchCV(
-				estimator=model,
-				param_grid=param_grid,
-				cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=random_seed),
-				scoring='f1',
-				verbose=3,
-				n_jobs=8
-			)
-		elif search_strategy == "random":
-			hyper_search = RandomizedSearchCV(
-			   estimator=model,
-			   param_distributions=param_grid,
-			   cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=random_seed),
-			   verbose=3,
-			   n_jobs=8,
-			   n_iter=random_n_iter
-			)
-
-		# Fit model
-		hyper_search.fit(X_train, y_train)
-
-		# track all output metrics
-		track_output_metrics(
-			hyper_search=hyper_search,
-			X_test=X_test,
-			y_test=y_test
+		# Run optimization
+		study.optimize(
+			lambda trial: optuna_objective(trial, X_train, y_train,
+										   random_seed),
+			n_trials=200,
+			show_progress_bar=True
 		)
+
+		logger.info(
+			f"Optimization completed. Best trial: {study.best_trial.number}")
+		logger.info(f"Best F1 score: {study.best_value:.4f}")
+		logger.info(f"Best parameters: {study.best_params}")
 
 		logger.info('building full_model')
 
 		# generate model with best params and train with all data
-		best_params = hyper_search.best_params_
+		best_params = study.best_params.copy()
+		best_params.update({
+			'objective': 'binary:logistic',
+			'enable_categorical': True,
+			'random_state': random_seed
+		})
+
 		full_model = xgb.XGBClassifier(**best_params)
 		full_model.fit(X, y)
+
+		# track all output metrics
+		track_output_metrics(
+			study=study,
+			model=full_model,
+			X_test=X_test,
+			y_test=y_test
+		)
 
 		# run predictions on full data set
 		y_pred = full_model.predict(X)
 		y_pred_proba = full_model.predict_proba(X)
-
-
 
 		# create model signature
 		if len(X) < 1000:

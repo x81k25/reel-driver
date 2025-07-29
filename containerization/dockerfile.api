@@ -17,8 +17,8 @@ ENV PATH="/root/.local/bin:$PATH"
 COPY pyproject.toml .
 COPY uv.lock .
 
-# Install Python dependencies using uv
-RUN /root/.local/bin/uv sync --frozen --no-dev
+# Install Python dependencies using uv with api extras
+RUN /root/.local/bin/uv sync --frozen --no-dev --extra api
 
 # Copy application code
 COPY ./app/ ./app
