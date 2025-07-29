@@ -99,7 +99,7 @@ def prep_engineered(
 
 
 def data_split(
-	df: pd.DataFrame,
+	pdf: pd.DataFrame,
 	split_size: float = 0.2,
 	random_state: int = 42
 ) -> tuple[
@@ -113,7 +113,7 @@ def data_split(
 	"""
 	take full df and performs test/train/val split based off of size param
 
-	:param df: whole dataset including the label column
+	:param pdf: whole dataset including the label column
 	:param split_size: the size in decimal percentage of the training and
 		the validation samples
 	:param random_state: random state param for reproducibility
@@ -126,11 +126,11 @@ def data_split(
 		y_test Series
 	]
 	"""
-	df_split = df.copy()
+	pdf_split = pdf.copy()
 
 	# features/label split
-	X = df_split.drop('label', axis=1)
-	y = df_split['label']
+	X = pdf_split.drop('label', axis=1)
+	y = pdf_split['label']
 
 	# train/test split
 	X_train, X_test, y_train, y_test = train_test_split(
@@ -340,37 +340,28 @@ def track_output_metrics(
 # ------------------------------------------------------------------------
 
 def xgb_hyp_op(
-	search_strategy: str = os.getenv('REEL_DRIVER_TRNG_HYPER_PARAM_SEARCH_STRAT', 'random'),
-	random_n_iter: int = 5,
 	random_seed: int = 42
 ):
 	"""
 	end-to-end stateless hyperparameter optimization service
 
-	:param search_strategy: either 'random' or 'grid'
-	:param random_n_iter: number of iterations if using random search
 	:param random_seed: random_state var to be passed to all functions
 	:return: None
 	"""
 	# load dotenv at the module level if running locally
 	if os.getenv("LOCAL_DEVELOPMENT", '') == "true":
 		load_dotenv(override=True)
-		search_strategy = 'random'
-		random_n_iter = 1000
 		random_seed = 42
-
-	# set minio env vars
-	os.environ['MLFLOW_S3_ENDPOINT_URL'] = str(
-		os.environ['REEL_DRIVER_MINIO_ENDPOINT'] +
-		":" +
-		os.environ['REEL_DRIVER_MINIO_PORT']
-	)
-
-	os.environ['AWS_ACCESS_KEY_ID'] = os.environ['REEL_DRIVER_MINIO_ACCESS_KEY']
-	os.environ['AWS_SECRET_ACCESS_KEY'] = os.environ['REEL_DRIVER_MINIO_SECRET_KEY']
 
 	# set random seeds
 	np.random.seed(random_seed)
+
+	# set minio env vars
+	os.environ['MLFLOW_S3_ENDPOINT_URL'] = str(
+		os.environ['REEL_DRIVER_MINIO_ENDPOINT'] + ":" + os.environ['REEL_DRIVER_MINIO_PORT']
+	)
+	os.environ['AWS_ACCESS_KEY_ID'] = os.environ['REEL_DRIVER_MINIO_ACCESS_KEY']
+	os.environ['AWS_SECRET_ACCESS_KEY'] = os.environ['REEL_DRIVER_MINIO_SECRET_KEY']
 
 	# connect to k8s mlflow service
 	mlflow_uri = "http://" + os.getenv('REEL_DRIVER_MLFLOW_HOST') + ":" + os.getenv('REEL_DRIVER_MLFLOW_PORT')
@@ -394,10 +385,14 @@ def xgb_hyp_op(
 	pdf = prep_engineered(df=df)
 
 	# split
-	X, X_train, X_test, y, y_train, y_test = data_split(pdf, random_seed)
+	X, X_train, X_test, y, y_train, y_test = data_split(
+		pdf=pdf,
+		split_size=0.2,
+		random_state=random_seed
+	)
 
 	# Start MLflow run
-	with mlflow.start_run(run_name="xgboost_grid_search"):
+	with mlflow.start_run(run_name="xgboost_optuna_search"):
 
 		# enter notes
 		notes = "automated training run"
