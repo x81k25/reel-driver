@@ -1,27 +1,40 @@
 [project]
 name = "reel-driver"
 version = "0.9"
-requires-python = ">=3.11,<3.12"
+requires-python = ">=3.12,<3.13"
+
+# Core dependencies needed by all containers or shared between multiple
 dependencies = [
     "adbc-driver-postgresql>=1.7.0",
     "boto3>=1.39.6",
-    "dotenv>=0.9.9",
-    "fastapi>=0.100.0",
     "loguru>=0.7.3",
     "mlflow==2.22.1",
-    "numpy>=2.3.1",
-    "optuna>=4.4.0",
-    "optuna-integration[xgboost]>=4.4.0",
     "pandas>=2.3.1",
     "polars>=1.31.0",
     "pyarrow>=4.0.0,<20",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
     "python-dotenv>=1.0.0",
     "requests>=2.31.0",
-    "scikit-learn>=1.7.0",
-    "uvicorn[standard]>=0.23.0",
     "xgboost>=3.0.2",
+]
+
+[project.optional-dependencies]
+# /src/training/feature_engineering.py dependencies
+feature-engineering = []
+
+# /src/training/model_training.py dependencies
+model-training = [
+    "numpy>=2.3.1",
+    "optuna>=4.4.0",
+    "optuna-integration[xgboost]>=4.4.0",
+    "scikit-learn>=1.7.0",
+]
+
+# /app/ api dependencies
+api = [
+    "fastapi>=0.100.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "uvicorn[standard]>=0.23.0",
 ]
 
 [tool.uv]
