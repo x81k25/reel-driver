@@ -163,6 +163,15 @@ async def general_exception_handler(request, exc):
         content={"message": "Internal server error"},
     )
 
+# Metrics endpoint for Prometheus
+@app.get("/metrics", tags=["monitoring"])
+async def metrics():
+    """Prometheus metrics endpoint."""
+    return {
+        "message": "Metrics endpoint placeholder",
+        "note": "Integrate with prometheus_client for full metrics"
+    }
+
 # Health check endpoint
 @root_router.get("/health", tags=["health"])
 async def health_check():
