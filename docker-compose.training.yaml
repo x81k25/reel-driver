@@ -1,0 +1,57 @@
+services:
+  model-training-gpu:
+    build:
+      context: .
+      dockerfile: ./containerization/dockerfile.model_training_gpu
+      args:
+        BASE_IMAGE: training-base-gpu:latest
+    image: model-training-gpu:latest
+    container_name: model-training-gpu
+    env_file:
+      - .env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - training-network
+
+  # CPU-based model training (fallback)
+  model-training:
+    build:
+      context: .
+      dockerfile: ./containerization/dockerfile.model_training
+      args:
+        BASE_IMAGE: training-base:latest
+    image: model-training:latest
+    container_name: model-training
+    env_file:
+      - .env
+    networks:
+      - training-network
+    profiles:
+      - cpu
+
+  # Feature engineering (CPU only - no GPU benefit)
+  feature-engineering:
+    build:
+      context: .
+      dockerfile: ./containerization/dockerfile.feature_engineering
+      args:
+        BASE_IMAGE: training-base:latest
+    image: feature-engineering:latest
+    container_name: feature-engineering
+    env_file:
+      - .env
+    networks:
+      - training-network
+    profiles:
+      - cpu
+      - full
+
+networks:
+  training-network:
+    driver: bridge

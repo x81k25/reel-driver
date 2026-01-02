@@ -6,6 +6,11 @@ import re
 from dotenv import load_dotenv
 from loguru import logger
 import mlflow
+
+# GPU configuration - set USE_GPU=true to enable CUDA acceleration
+USE_GPU = os.getenv("USE_GPU", "false").lower() == "true"
+DEVICE = "cuda" if USE_GPU else "cpu"
+logger.info(f"XGBoost device configured: {DEVICE}")
 from mlflow.models.signature import infer_signature
 import numpy as np
 import optuna
@@ -195,6 +200,7 @@ def optuna_objective(
 	params = {
 		'objective': 'binary:logistic',
 		'enable_categorical': True,
+		'device': DEVICE,
 		'random_state': random_seed,
 		'scale_pos_weight': trial.suggest_int('scale_pos_weight', 1, 15),
 		'max_depth': trial.suggest_int('max_depth', 3, 7),
@@ -436,6 +442,7 @@ def xgb_hyp_op(
 		best_params.update({
 			'objective': 'binary:logistic',
 			'enable_categorical': True,
+			'device': DEVICE,
 			'random_state': random_seed
 		})
 

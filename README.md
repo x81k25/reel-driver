@@ -93,9 +93,8 @@ LOCAL_DEVELOPMENT=true  # Set to 'true' for local development
 This project uses `uv` for dependency management with modular dependencies:
 
 ```bash
-# Create and activate a virtual environment
-python -m venv .venv
-source .venv/bin/activate
+# Create a virtual environment (optional - uv sync will create it automatically)
+uv venv
 
 # Install dependencies based on your needs:
 
@@ -113,6 +112,9 @@ uv sync
 
 # For development with all extras
 uv sync --all-extras
+
+# Note: uv automatically creates and manages the virtual environment in .venv
+# To activate the environment manually: source .venv/bin/activate
 ```
 
 ## Testing

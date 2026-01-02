@@ -59,23 +59,23 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-    - name: Build and push training service images
+    - name: Build and push CPU training service images
       run: |
         set -e
-        echo "Building training service images with base image: ${{ env.IMAGE_PREFIX }}/training-base:${{ env.BASE_TAG }}"
-        
-        # List of training services to build
+        echo "Building CPU training service images with base image: ${{ env.IMAGE_PREFIX }}/training-base:${{ env.BASE_TAG }}"
+
+        # List of CPU training services to build
         services=(
           "feature_engineering:reel-driver-feature-engineering"
           "model_training:reel-driver-model-training"
         )
-        
+
         # Build each service
         for service_info in "${services[@]}"; do
           IFS=':' read -r dockerfile service_name <<< "$service_info"
-          
+
           echo "Building ${service_name}..."
-          
+
           # Generate service tags
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             SERVICE_TAGS="${{ env.IMAGE_PREFIX }}/${service_name}:pr-${{ github.event.number }}"
@@ -85,7 +85,7 @@ jobs:
             BRANCH_NAME=${GITHUB_REF#refs/heads/}
             SERVICE_TAGS="${{ env.IMAGE_PREFIX }}/${service_name}:${BRANCH_NAME},${{ env.IMAGE_PREFIX }}/${service_name}:sha-${GITHUB_SHA:0:8}"
           fi
-          
+
           # Build and push the service image
           docker buildx build \
             --build-arg BASE_IMAGE=${{ env.IMAGE_PREFIX }}/training-base:${{ env.BASE_TAG }} \
@@ -97,6 +97,43 @@ jobs:
             .
         done
 
+    - name: Build and push GPU base training image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./containerization/dockerfile.base_training_gpu
+        push: true
+        tags: ${{ env.TAGS }}-gpu
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build and push GPU model training image
+      run: |
+        set -e
+        echo "Building GPU model training image..."
+
+        # Generate GPU service tags
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          GPU_TAGS="${{ env.IMAGE_PREFIX }}/reel-driver-model-training-gpu:pr-${{ github.event.number }}"
+          GPU_BASE_TAG="pr-${{ github.event.number }}-gpu"
+        elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+          GPU_TAGS="${{ env.IMAGE_PREFIX }}/reel-driver-model-training-gpu:latest,${{ env.IMAGE_PREFIX }}/reel-driver-model-training-gpu:main,${{ env.IMAGE_PREFIX }}/reel-driver-model-training-gpu:sha-${GITHUB_SHA:0:8}"
+          GPU_BASE_TAG="latest-gpu"
+        else
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          GPU_TAGS="${{ env.IMAGE_PREFIX }}/reel-driver-model-training-gpu:${BRANCH_NAME},${{ env.IMAGE_PREFIX }}/reel-driver-model-training-gpu:sha-${GITHUB_SHA:0:8}"
+          GPU_BASE_TAG="${BRANCH_NAME}-gpu"
+        fi
+
+        docker buildx build \
+          --build-arg BASE_IMAGE=${{ env.IMAGE_PREFIX }}/training-base:${GPU_BASE_TAG} \
+          --file ./containerization/dockerfile.model_training_gpu \
+          --tag ${GPU_TAGS//,/ --tag } \
+          --push \
+          --cache-from type=gha \
+          --cache-to type=gha,mode=max \
+          .
+
     - name: Report build summary
       if: always()
       run: |
@@ -104,7 +141,11 @@ jobs:
         echo "- Base image: ${{ env.IMAGE_PREFIX }}/training-base:${{ env.BASE_TAG }}" >> $GITHUB_STEP_SUMMARY
         echo "- Total build time: $((SECONDS / 60)) minutes $((SECONDS % 60)) seconds" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Training images pushed:" >> $GITHUB_STEP_SUMMARY
+        echo "### CPU Training images pushed:" >> $GITHUB_STEP_SUMMARY
         echo "- training-base" >> $GITHUB_STEP_SUMMARY
         echo "- reel-driver-feature-engineering" >> $GITHUB_STEP_SUMMARY
         echo "- reel-driver-model-training" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### GPU Training images pushed:" >> $GITHUB_STEP_SUMMARY
+        echo "- training-base-gpu" >> $GITHUB_STEP_SUMMARY
+        echo "- reel-driver-model-training-gpu" >> $GITHUB_STEP_SUMMARY
