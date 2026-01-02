@@ -1,10 +1,66 @@
+# standard library imports
+from pathlib import Path
+
 # third-party imports
 from loguru import logger
 import polars as pl
 import re
+import yaml
 
 # custom/local imports
 import src.utils as utils
+
+# -----------------------------------------------------------------------------
+# config loading
+# -----------------------------------------------------------------------------
+
+def load_production_company_config() -> dict:
+    """
+    Load production company normalization config from YAML.
+
+    :return: dict containing normalization_rules and encoding_settings
+    """
+    config_path = Path(__file__).parent.parent.parent / "config" / "production_companies.yaml"
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
+
+
+def build_company_normalization_map(config: dict) -> dict:
+    """
+    Build a reverse lookup map from variant names to canonical names.
+
+    :param config: loaded YAML config dict
+    :return: dict mapping lowercase variant names to canonical names
+    """
+    normalize_map = {}
+    for canonical, variants in config['normalization_rules'].items():
+        for variant in variants:
+            normalize_map[variant.lower().strip()] = canonical
+    return normalize_map
+
+
+def normalize_production_companies(
+    series: pl.Series,
+    normalize_map: dict
+) -> pl.Series:
+    """
+    Normalize production company names in a Series of lists.
+
+    :param series: pl.Series containing lists of company names
+    :param normalize_map: dict mapping variant names to canonical names
+    :return: pl.Series with normalized company names
+    """
+    def normalize_list(companies):
+        if companies is None:
+            return None
+        normalized = []
+        for company in companies:
+            key = company.lower().strip()
+            normalized.append(normalize_map.get(key, company))
+        return normalized
+
+    return series.map_elements(normalize_list, return_dtype=pl.List(pl.String))
+
 
 # -----------------------------------------------------------------------------
 # supporting functions
@@ -12,15 +68,18 @@ import src.utils as utils
 
 def one_hot_encode_list_column(
     series: pl.Series,
-    column_name: str
+    column_name: str,
+    max_categories: int | None = None
 ) -> tuple[list[str], list[list[int]]]:
     """
 	One-hot encode a Polars Series containing lists of strings.
 
 	:param series: pl.Series containing lists of strings to be one-hot encoded
 	:param column_name: str, original column name to use as prefix for generated column names
+	:param max_categories: optional int, limit encoding to top N most frequent values
 	:return: tuple containing list of column names and list of one-hot encoded arrays
 	"""
+    from collections import Counter
 
     def clean_value(value: str) -> str:
         # Replace non-word characters with underscores and convert to lowercase
@@ -34,20 +93,31 @@ def one_hot_encode_list_column(
     if series.is_null().all():
         return [column_name], [[0] for _ in range(len(series))]
 
-    # Get all unique values across all lists
-    all_values = set()
+    # Get all values across all lists with their frequencies
+    all_values_list = []
     for row in series:
         if row is not None and len(row) > 0:
-            all_values.update(row)
+            all_values_list.extend(row)
 
     # If no values found, return original column name
-    if not all_values:
+    if not all_values_list:
         return [column_name], [[0] for _ in range(len(series))]
 
-    # Create sorted list of unique values and their cleaned column names
-    sorted_values = sorted(all_values)
+    # Count frequencies and optionally limit to top N
+    value_counts = Counter(all_values_list)
+    if max_categories is not None:
+        # Get top N most frequent values
+        top_values = [v for v, _ in value_counts.most_common(max_categories)]
+        sorted_values = sorted(top_values)
+        logger.info(f"{column_name}: limited to top {max_categories} of {len(value_counts)} unique values")
+    else:
+        sorted_values = sorted(value_counts.keys())
+
     column_names = [f"{column_name}_{clean_value(value)}" for value in
                     sorted_values]
+
+    # Create set for O(1) lookup
+    values_set = set(sorted_values)
 
     # Create one-hot encoded arrays
     encoded_arrays = []
@@ -55,6 +125,7 @@ def one_hot_encode_list_column(
         if row is None or len(row) == 0:
             encoded_arrays.append([0] * len(sorted_values))
         else:
+            # Only encode values that are in our selected set
             encoded_row = [1 if value in row else 0 for value in sorted_values]
             encoded_arrays.append(encoded_row)
 
@@ -195,9 +266,21 @@ def cat_training(training: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
         "exploded_mapping": pl.List(pl.String)
     })
 
-    # production_companies currently not being loaded as it would balloon total data_set size
-    training_cat = training_cat.drop('production_companies')
+    # load production company config and normalize names
+    company_config = load_production_company_config()
+    normalize_map = build_company_normalization_map(company_config)
+    max_companies = company_config['encoding_settings']['max_categories']
 
+    training_cat = training_cat.with_columns(
+        normalize_production_companies(
+            training_cat['production_companies'],
+            normalize_map
+        ).alias('production_companies')
+    )
+
+    logger.info(f"production_companies normalized, encoding top {max_companies}")
+
+    # columns to one-hot encode without category limits
     list_columns = [
         'origin_country',
         'production_countries',
@@ -231,6 +314,26 @@ def cat_training(training: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
             'exploded_mapping': [names]
         })
         engineered_schema = pl.concat([engineered_schema, schema_row])
+
+    # encode production_companies with max_categories limit
+    names, values = one_hot_encode_list_column(
+        series=training_cat['production_companies'],
+        column_name='production_companies',
+        max_categories=max_companies
+    )
+
+    training_cat = (
+        training_cat.with_columns(
+            pl.Series('production_companies_encoded', values)
+        ).drop('production_companies')
+        .rename({'production_companies_encoded': 'production_companies'})
+    )
+
+    schema_row = pl.DataFrame({
+        'original_column': ['production_companies'],
+        'exploded_mapping': [names]
+    })
+    engineered_schema = pl.concat([engineered_schema, schema_row])
 
     logger.info("categorical operations complete")
 
