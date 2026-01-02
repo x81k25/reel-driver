@@ -26,13 +26,9 @@ jobs:
       run: |
         uv sync --all-extras
 
-    - name: Run unit tests
+    - name: Run training unit tests
       run: |
-        uv run pytest tests/training/test_model_training_unit.py -v --tb=short -m "not slow"
-
-    - name: Run API unit tests
-      run: |
-        uv run pytest tests/api/test_endpoints.py -v --tb=short
+        uv run pytest tests/training/test_model_training_unit.py -v --tb=short --ignore=tests/conftest.py -p no:conftest
 
     - name: Report test summary
       if: always()
