@@ -28,7 +28,7 @@ jobs:
 
     - name: Run training unit tests
       run: |
-        uv run pytest tests/training/test_model_training_unit.py -v --tb=short --ignore=tests/conftest.py -p no:conftest
+        uv run pytest tests/training/test_model_training_unit.py -v --tb=short --confcutdir=tests/training
 
     - name: Report test summary
       if: always()
