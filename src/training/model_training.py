@@ -341,6 +341,59 @@ def track_output_metrics(
 	return
 
 
+def log_tree_visualizations(
+	model: xgb.XGBClassifier,
+	num_trees: int = 5
+):
+	"""
+	Logs XGBoost tree visualizations as MLflow artifacts.
+
+	Stores DOT format representations of decision trees and feature importance
+	for later visualization in Streamlit via st.graphviz_chart().
+
+	:param model: trained XGBoost model
+	:param num_trees: number of trees to export (default 5)
+	:return: None
+	"""
+	booster = model.get_booster()
+
+	# Get total number of trees in the model
+	total_trees = booster.num_boosted_rounds()
+	trees_to_export = min(num_trees, total_trees)
+
+	logger.info(f"Exporting {trees_to_export} of {total_trees} trees as DOT format")
+
+	# Get DOT format for trees
+	dot_trees = booster.get_dump(dump_format='dot')
+
+	# Build feature importance dict
+	feature_names = booster.feature_names
+	importance_scores = model.feature_importances_.tolist()
+	feature_importance = dict(zip(feature_names, importance_scores))
+
+	# Sort by importance descending
+	feature_importance_sorted = dict(
+		sorted(feature_importance.items(), key=lambda x: x[1], reverse=True)
+	)
+
+	# Create artifact structure
+	tree_artifacts = {
+		'metadata': {
+			'total_trees': total_trees,
+			'exported_trees': trees_to_export,
+			'feature_count': len(feature_names)
+		},
+		'trees': dot_trees[:trees_to_export],
+		'feature_importance': feature_importance_sorted
+	}
+
+	mlflow.log_dict(tree_artifacts, "xgboost_trees.json")
+
+	logger.info(f"Tree visualizations logged to MLflow: {trees_to_export} trees, {len(feature_names)} features")
+
+	return
+
+
 # ------------------------------------------------------------------------
 # primary function
 # ------------------------------------------------------------------------
@@ -456,6 +509,9 @@ def xgb_hyp_op(
 			X_test=X_test,
 			y_test=y_test
 		)
+
+		# log tree visualizations for Streamlit display
+		log_tree_visualizations(model=full_model, num_trees=5)
 
 		# run predictions on full data set
 		y_pred = full_model.predict(X)
