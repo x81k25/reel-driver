@@ -19,6 +19,7 @@ load_dotenv()
 
 
 @pytest.mark.integration
+@pytest.mark.slow
 class TestModelTrainingIntegration:
     """Integration test for model training pipeline."""
     

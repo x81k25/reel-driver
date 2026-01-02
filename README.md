@@ -39,9 +39,12 @@ reel-driver/
 │   │   └── test_model_training_integration.py
 │   └── conftest.py                  # Shared test fixtures
 ├── containerization/                # Docker container definitions
-│   ├── dockerfile.base_training     # Base training image
-│   ├── dockerfile.feature_engineering
-│   ├── dockerfile.model_training
+│   ├── dockerfile.base_training     # CPU base training image
+│   ├── dockerfile.base_training_gpu # GPU base training image (CUDA 12.4)
+│   ├── dockerfile.feature_engineering_cpu
+│   ├── dockerfile.feature_engineering_gpu
+│   ├── dockerfile.model_training_cpu
+│   ├── dockerfile.model_training_gpu
 │   └── dockerfile.api               # API service image
 ├── data/                           # Training data artifacts
 ├── notebooks/                      # Jupyter notebooks for analysis
@@ -93,9 +96,8 @@ LOCAL_DEVELOPMENT=true  # Set to 'true' for local development
 This project uses `uv` for dependency management with modular dependencies:
 
 ```bash
-# Create and activate a virtual environment
-python -m venv .venv
-source .venv/bin/activate
+# Create a virtual environment (optional - uv sync will create it automatically)
+uv venv
 
 # Install dependencies based on your needs:
 
@@ -113,6 +115,9 @@ uv sync
 
 # For development with all extras
 uv sync --all-extras
+
+# Note: uv automatically creates and manages the virtual environment in .venv
+# To activate the environment manually: source .venv/bin/activate
 ```
 
 ## Testing
@@ -186,10 +191,15 @@ python -c "from src.training.model_training import __main__; __main__()"
 
 ### Build Images
 ```bash
-# Build training containers
-docker build -f containerization/dockerfile.base_training -t training-base .
-docker build -f containerization/dockerfile.feature_engineering -t feature-engineering .
-docker build -f containerization/dockerfile.model_training -t model-training .
+# Build CPU training containers
+docker build -f containerization/dockerfile.base_training -t reel-driver-training-base-cpu .
+docker build -f containerization/dockerfile.feature_engineering_cpu -t reel-driver-feature-engineering-cpu .
+docker build -f containerization/dockerfile.model_training_cpu -t reel-driver-model-training-cpu .
+
+# Build GPU training containers (requires NVIDIA Docker runtime)
+docker build -f containerization/dockerfile.base_training_gpu -t reel-driver-training-base-gpu .
+docker build -f containerization/dockerfile.feature_engineering_gpu -t reel-driver-feature-engineering-gpu .
+docker build -f containerization/dockerfile.model_training_gpu -t reel-driver-model-training-gpu .
 
 # Build API container
 docker build -f containerization/dockerfile.api -t reel-driver-api .
@@ -197,12 +207,20 @@ docker build -f containerization/dockerfile.api -t reel-driver-api .
 
 ### Run Containers
 ```bash
-# Run training containers
-docker run --env-file .env feature-engineering
-docker run --env-file .env model-training
+# Run CPU training containers
+docker run --env-file .env reel-driver-feature-engineering-cpu
+docker run --env-file .env reel-driver-model-training-cpu
+
+# Run GPU training containers (requires nvidia-docker)
+docker run --gpus all --env-file .env reel-driver-feature-engineering-gpu
+docker run --gpus all --env-file .env reel-driver-model-training-gpu
 
 # Run API container
 docker run --env-file .env -p 8000:8000 reel-driver-api
+
+# Or use docker-compose for local GPU/CPU training
+docker-compose -f docker-compose.training.yaml --profile gpu up model-training-gpu
+docker-compose -f docker-compose.training.yaml --profile cpu up model-training-cpu
 ```
 
 ## Documentation
@@ -215,8 +233,21 @@ docker run --env-file .env -p 8000:8000 reel-driver-api
 
 This project implements a modern MLOps pipeline:
 
-1. **Stateless Training Containers** - Feature engineering and model training
-2. **FastAPI Inference Service** - Production-ready REST API
-3. **MLflow Integration** - Experiment tracking and model registry
-4. **Comprehensive Testing** - Unit tests, integration tests, and CI/CD
-5. **Container Orchestration** - Designed for Dagster pipeline orchestration
+1. **Stateless Training Containers** - Feature engineering and model training with CPU/GPU variants
+2. **GPU Acceleration** - XGBoost training with CUDA support (22-25% speedup on current dataset)
+3. **FastAPI Inference Service** - Production-ready REST API
+4. **MLflow Integration** - Experiment tracking and model registry
+5. **Comprehensive Testing** - Unit tests, integration tests, and CI/CD
+6. **Container Orchestration** - Designed for Dagster pipeline orchestration
+
+### Docker Images
+
+| Image | Description |
+|-------|-------------|
+| `reel-driver-training-base-cpu` | CPU base image (Python 3.12) |
+| `reel-driver-training-base-gpu` | GPU base image (CUDA 12.4) |
+| `reel-driver-feature-engineering-cpu/gpu` | Feature engineering pipeline |
+| `reel-driver-model-training-cpu/gpu` | XGBoost model training with Optuna |
+| `reel-driver-api` | FastAPI inference service |
+
+See [docs/CPU-v-GPU.md](./docs/CPU-v-GPU.md) for detailed GPU implementation documentation.
