@@ -7,8 +7,8 @@ This document compares the CPU and GPU implementations for the Reel Driver XGBoo
 ```mermaid
 flowchart TB
     subgraph base["Base Images"]
-        cpu_base["training-base-cpu<br/>(python:3.12-slim-bullseye)"]
-        gpu_base["training-base-gpu<br/>(nvidia/cuda:12.4.0-runtime-ubuntu22.04)"]
+        cpu_base["reel-driver-training-base-cpu<br/>(python:3.12-slim-bullseye)"]
+        gpu_base["reel-driver-training-base-gpu<br/>(nvidia/cuda:12.4.0-runtime-ubuntu22.04)"]
     end
 
     subgraph services["Service Images"]

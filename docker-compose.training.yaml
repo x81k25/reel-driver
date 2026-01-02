@@ -7,7 +7,7 @@ services:
       context: .
       dockerfile: ./containerization/dockerfile.feature_engineering_gpu
       args:
-        BASE_IMAGE: training-base-gpu:latest
+        BASE_IMAGE: reel-driver-training-base-gpu:latest
     image: reel-driver-feature-engineering-gpu:latest
     container_name: feature-engineering-gpu
     env_file:
@@ -29,7 +29,7 @@ services:
       context: .
       dockerfile: ./containerization/dockerfile.model_training_gpu
       args:
-        BASE_IMAGE: training-base-gpu:latest
+        BASE_IMAGE: reel-driver-training-base-gpu:latest
     image: reel-driver-model-training-gpu:latest
     container_name: model-training-gpu
     env_file:
@@ -52,7 +52,7 @@ services:
       context: .
       dockerfile: ./containerization/dockerfile.feature_engineering_cpu
       args:
-        BASE_IMAGE: training-base-cpu:latest
+        BASE_IMAGE: reel-driver-training-base-cpu:latest
     image: reel-driver-feature-engineering-cpu:latest
     container_name: feature-engineering-cpu
     env_file:
@@ -67,7 +67,7 @@ services:
       context: .
       dockerfile: ./containerization/dockerfile.model_training_cpu
       args:
-        BASE_IMAGE: training-base-cpu:latest
+        BASE_IMAGE: reel-driver-training-base-cpu:latest
     image: reel-driver-model-training-cpu:latest
     container_name: model-training-cpu
     env_file:

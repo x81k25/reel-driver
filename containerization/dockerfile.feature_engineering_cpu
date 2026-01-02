@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ghcr.io/username/reel-driver-dev/training-base-cpu:latest
+ARG BASE_IMAGE=ghcr.io/x81k25/reel-driver/reel-driver-training-base-cpu:latest
 FROM ${BASE_IMAGE}
 
 # Install feature-engineering specific dependencies
