@@ -1,11 +1,36 @@
 services:
+  # ===================
+  # GPU Services
+  # ===================
+  feature-engineering-gpu:
+    build:
+      context: .
+      dockerfile: ./containerization/dockerfile.feature_engineering_gpu
+      args:
+        BASE_IMAGE: training-base-gpu:latest
+    image: reel-driver-feature-engineering-gpu:latest
+    container_name: feature-engineering-gpu
+    env_file:
+      - .env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - training-network
+    profiles:
+      - gpu
+
   model-training-gpu:
     build:
       context: .
       dockerfile: ./containerization/dockerfile.model_training_gpu
       args:
         BASE_IMAGE: training-base-gpu:latest
-    image: model-training-gpu:latest
+    image: reel-driver-model-training-gpu:latest
     container_name: model-training-gpu
     env_file:
       - .env
@@ -19,15 +44,17 @@ services:
     networks:
       - training-network
 
-  # CPU-based model training (fallback)
-  model-training:
+  # ===================
+  # CPU Services (fallback)
+  # ===================
+  feature-engineering-cpu:
     build:
       context: .
-      dockerfile: ./containerization/dockerfile.model_training
+      dockerfile: ./containerization/dockerfile.feature_engineering_cpu
       args:
-        BASE_IMAGE: training-base:latest
-    image: model-training:latest
-    container_name: model-training
+        BASE_IMAGE: training-base-cpu:latest
+    image: reel-driver-feature-engineering-cpu:latest
+    container_name: feature-engineering-cpu
     env_file:
       - .env
     networks:
@@ -35,22 +62,20 @@ services:
     profiles:
       - cpu
 
-  # Feature engineering (CPU only - no GPU benefit)
-  feature-engineering:
+  model-training-cpu:
     build:
       context: .
-      dockerfile: ./containerization/dockerfile.feature_engineering
+      dockerfile: ./containerization/dockerfile.model_training_cpu
       args:
-        BASE_IMAGE: training-base:latest
-    image: feature-engineering:latest
-    container_name: feature-engineering
+        BASE_IMAGE: training-base-cpu:latest
+    image: reel-driver-model-training-cpu:latest
+    container_name: model-training-cpu
     env_file:
       - .env
     networks:
       - training-network
     profiles:
       - cpu
-      - full
 
 networks:
   training-network:

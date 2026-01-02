@@ -4,5 +4,5 @@ FROM ${BASE_IMAGE}
 # Install model-training specific dependencies
 RUN /root/.local/bin/uv sync --frozen --no-dev --extra model-training
 
-# Set the entrypoint to run model training
+# Set the entrypoint to run model training with GPU
 ENTRYPOINT ["python", "-c", "from src.training.model_training import __main__; __main__()"]

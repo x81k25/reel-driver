@@ -16,7 +16,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -36,116 +36,115 @@ jobs:
       run: |
         # Generate tags based on branch/PR
         if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-          TAGS="${{ env.IMAGE_PREFIX }}/training-base:pr-${{ github.event.number }}"
-          echo "BASE_TAG=pr-${{ github.event.number }}" >> $GITHUB_ENV
+          echo "TAG=pr-${{ github.event.number }}" >> $GITHUB_ENV
         elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-          TAGS="${{ env.IMAGE_PREFIX }}/training-base:latest,${{ env.IMAGE_PREFIX }}/training-base:main,${{ env.IMAGE_PREFIX }}/training-base:sha-${GITHUB_SHA:0:8}"
-          echo "BASE_TAG=latest" >> $GITHUB_ENV
+          echo "TAG=latest" >> $GITHUB_ENV
         else
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          TAGS="${{ env.IMAGE_PREFIX }}/training-base:${BRANCH_NAME},${{ env.IMAGE_PREFIX }}/training-base:sha-${GITHUB_SHA:0:8}"
-          echo "BASE_TAG=${BRANCH_NAME}" >> $GITHUB_ENV
+          echo "TAG=${BRANCH_NAME}" >> $GITHUB_ENV
         fi
-        echo "TAGS=$TAGS" >> $GITHUB_ENV
-        echo "Tags: $TAGS"
 
-    - name: Build and push base training image
+    # ===================
+    # CPU Base Image
+    # ===================
+    - name: Build and push CPU base training image
       uses: docker/build-push-action@v5
       with:
         context: .
         file: ./containerization/dockerfile.base_training
         push: true
-        tags: ${{ env.TAGS }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        tags: |
+          ${{ env.IMAGE_PREFIX }}/training-base-cpu:${{ env.TAG }}
+          ${{ env.IMAGE_PREFIX }}/training-base-cpu:sha-${{ github.sha }}
+        cache-from: type=gha,scope=base-cpu
+        cache-to: type=gha,mode=max,scope=base-cpu
 
-    - name: Build and push CPU training service images
-      run: |
-        set -e
-        echo "Building CPU training service images with base image: ${{ env.IMAGE_PREFIX }}/training-base:${{ env.BASE_TAG }}"
-
-        # List of CPU training services to build
-        services=(
-          "feature_engineering:reel-driver-feature-engineering"
-          "model_training:reel-driver-model-training"
-        )
-
-        # Build each service
-        for service_info in "${services[@]}"; do
-          IFS=':' read -r dockerfile service_name <<< "$service_info"
-
-          echo "Building ${service_name}..."
-
-          # Generate service tags
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            SERVICE_TAGS="${{ env.IMAGE_PREFIX }}/${service_name}:pr-${{ github.event.number }}"
-          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            SERVICE_TAGS="${{ env.IMAGE_PREFIX }}/${service_name}:latest,${{ env.IMAGE_PREFIX }}/${service_name}:main,${{ env.IMAGE_PREFIX }}/${service_name}:sha-${GITHUB_SHA:0:8}"
-          else
-            BRANCH_NAME=${GITHUB_REF#refs/heads/}
-            SERVICE_TAGS="${{ env.IMAGE_PREFIX }}/${service_name}:${BRANCH_NAME},${{ env.IMAGE_PREFIX }}/${service_name}:sha-${GITHUB_SHA:0:8}"
-          fi
-
-          # Build and push the service image
-          docker buildx build \
-            --build-arg BASE_IMAGE=${{ env.IMAGE_PREFIX }}/training-base:${{ env.BASE_TAG }} \
-            --file ./containerization/dockerfile.${dockerfile} \
-            --tag ${SERVICE_TAGS//,/ --tag } \
-            --push \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
-            .
-        done
-
+    # ===================
+    # GPU Base Image
+    # ===================
     - name: Build and push GPU base training image
       uses: docker/build-push-action@v5
       with:
         context: .
         file: ./containerization/dockerfile.base_training_gpu
         push: true
-        tags: ${{ env.TAGS }}-gpu
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        tags: |
+          ${{ env.IMAGE_PREFIX }}/training-base-gpu:${{ env.TAG }}
+          ${{ env.IMAGE_PREFIX }}/training-base-gpu:sha-${{ github.sha }}
+        cache-from: type=gha,scope=base-gpu
+        cache-to: type=gha,mode=max,scope=base-gpu
 
-    - name: Build and push GPU model training image
+    # ===================
+    # CPU Service Images
+    # ===================
+    - name: Build and push CPU service images
       run: |
         set -e
-        echo "Building GPU model training image..."
+        echo "Building CPU service images..."
 
-        # Generate GPU service tags
-        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-          GPU_TAGS="${{ env.IMAGE_PREFIX }}/reel-driver-model-training-gpu:pr-${{ github.event.number }}"
-          GPU_BASE_TAG="pr-${{ github.event.number }}-gpu"
-        elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-          GPU_TAGS="${{ env.IMAGE_PREFIX }}/reel-driver-model-training-gpu:latest,${{ env.IMAGE_PREFIX }}/reel-driver-model-training-gpu:main,${{ env.IMAGE_PREFIX }}/reel-driver-model-training-gpu:sha-${GITHUB_SHA:0:8}"
-          GPU_BASE_TAG="latest-gpu"
-        else
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          GPU_TAGS="${{ env.IMAGE_PREFIX }}/reel-driver-model-training-gpu:${BRANCH_NAME},${{ env.IMAGE_PREFIX }}/reel-driver-model-training-gpu:sha-${GITHUB_SHA:0:8}"
-          GPU_BASE_TAG="${BRANCH_NAME}-gpu"
-        fi
+        services=(
+          "feature_engineering_cpu:reel-driver-feature-engineering-cpu"
+          "model_training_cpu:reel-driver-model-training-cpu"
+        )
 
-        docker buildx build \
-          --build-arg BASE_IMAGE=${{ env.IMAGE_PREFIX }}/training-base:${GPU_BASE_TAG} \
-          --file ./containerization/dockerfile.model_training_gpu \
-          --tag ${GPU_TAGS//,/ --tag } \
-          --push \
-          --cache-from type=gha \
-          --cache-to type=gha,mode=max \
-          .
+        for service_info in "${services[@]}"; do
+          IFS=':' read -r dockerfile service_name <<< "$service_info"
+          echo "Building ${service_name}..."
+
+          docker buildx build \
+            --build-arg BASE_IMAGE=${{ env.IMAGE_PREFIX }}/training-base-cpu:${{ env.TAG }} \
+            --file ./containerization/dockerfile.${dockerfile} \
+            --tag ${{ env.IMAGE_PREFIX }}/${service_name}:${{ env.TAG }} \
+            --tag ${{ env.IMAGE_PREFIX }}/${service_name}:sha-${GITHUB_SHA:0:8} \
+            --push \
+            --cache-from type=gha,scope=${service_name} \
+            --cache-to type=gha,mode=max,scope=${service_name} \
+            .
+        done
+
+    # ===================
+    # GPU Service Images
+    # ===================
+    - name: Build and push GPU service images
+      run: |
+        set -e
+        echo "Building GPU service images..."
+
+        services=(
+          "feature_engineering_gpu:reel-driver-feature-engineering-gpu"
+          "model_training_gpu:reel-driver-model-training-gpu"
+        )
+
+        for service_info in "${services[@]}"; do
+          IFS=':' read -r dockerfile service_name <<< "$service_info"
+          echo "Building ${service_name}..."
+
+          docker buildx build \
+            --build-arg BASE_IMAGE=${{ env.IMAGE_PREFIX }}/training-base-gpu:${{ env.TAG }} \
+            --file ./containerization/dockerfile.${dockerfile} \
+            --tag ${{ env.IMAGE_PREFIX }}/${service_name}:${{ env.TAG }} \
+            --tag ${{ env.IMAGE_PREFIX }}/${service_name}:sha-${GITHUB_SHA:0:8} \
+            --push \
+            --cache-from type=gha,scope=${service_name} \
+            --cache-to type=gha,mode=max,scope=${service_name} \
+            .
+        done
 
     - name: Report build summary
       if: always()
       run: |
         echo "## Training Build Summary" >> $GITHUB_STEP_SUMMARY
-        echo "- Base image: ${{ env.IMAGE_PREFIX }}/training-base:${{ env.BASE_TAG }}" >> $GITHUB_STEP_SUMMARY
+        echo "- Tag: ${{ env.TAG }}" >> $GITHUB_STEP_SUMMARY
         echo "- Total build time: $((SECONDS / 60)) minutes $((SECONDS % 60)) seconds" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### CPU Training images pushed:" >> $GITHUB_STEP_SUMMARY
-        echo "- training-base" >> $GITHUB_STEP_SUMMARY
-        echo "- reel-driver-feature-engineering" >> $GITHUB_STEP_SUMMARY
-        echo "- reel-driver-model-training" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### GPU Training images pushed:" >> $GITHUB_STEP_SUMMARY
+        echo "### Base Images:" >> $GITHUB_STEP_SUMMARY
+        echo "- training-base-cpu" >> $GITHUB_STEP_SUMMARY
         echo "- training-base-gpu" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### CPU Service Images:" >> $GITHUB_STEP_SUMMARY
+        echo "- reel-driver-feature-engineering-cpu" >> $GITHUB_STEP_SUMMARY
+        echo "- reel-driver-model-training-cpu" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### GPU Service Images:" >> $GITHUB_STEP_SUMMARY
+        echo "- reel-driver-feature-engineering-gpu" >> $GITHUB_STEP_SUMMARY
         echo "- reel-driver-model-training-gpu" >> $GITHUB_STEP_SUMMARY
