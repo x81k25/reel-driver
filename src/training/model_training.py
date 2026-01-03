@@ -450,8 +450,10 @@ def xgb_hyp_op(
 		random_state=random_seed
 	)
 
-	# Start MLflow run
-	with mlflow.start_run(run_name="xgboost_optuna_search"):
+	# Start MLflow run with variant suffix if specified
+	training_variant = os.environ.get('TRAINING_VARIANT', '')
+	run_name = f"xgboost_optuna_search_{training_variant}" if training_variant else "xgboost_optuna_search"
+	with mlflow.start_run(run_name=run_name):
 
 		# enter notes
 		notes = "automated training run"
