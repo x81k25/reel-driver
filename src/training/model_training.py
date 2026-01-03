@@ -11,6 +11,11 @@ import mlflow
 USE_GPU = os.getenv("USE_GPU", "false").lower() == "true"
 DEVICE = "cuda" if USE_GPU else "cpu"
 logger.info(f"XGBoost device configured: {DEVICE}")
+
+# Hyperparameter configuration - configurable via environment variables
+OPTUNA_N_TRIALS = int(os.getenv("OPTUNA_N_TRIALS", "200"))
+XGBOOST_N_ESTIMATORS_MAX = int(os.getenv("XGBOOST_N_ESTIMATORS_MAX", "200"))
+logger.info(f"Optuna trials: {OPTUNA_N_TRIALS}, XGBoost max estimators: {XGBOOST_N_ESTIMATORS_MAX}")
 from mlflow.models.signature import infer_signature
 import numpy as np
 import optuna
@@ -204,7 +209,7 @@ def optuna_objective(
 		'random_state': random_seed,
 		'scale_pos_weight': trial.suggest_int('scale_pos_weight', 1, 15),
 		'max_depth': trial.suggest_int('max_depth', 3, 7),
-		'n_estimators': trial.suggest_int('n_estimators', 50, 200, step=25),
+		'n_estimators': trial.suggest_int('n_estimators', 50, XGBOOST_N_ESTIMATORS_MAX, step=25),
 		'min_child_weight': trial.suggest_int('min_child_weight', 1, 5),
 		'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.2,
 											 log=True),
@@ -475,13 +480,13 @@ def xgb_hyp_op(
 		)
 
 		logger.info(
-			"Starting Optuna hyperparameter optimization with 200 trials")
+			f"Starting Optuna hyperparameter optimization with {OPTUNA_N_TRIALS} trials")
 
 		# Run optimization
 		study.optimize(
 			lambda trial: optuna_objective(trial, X_train, y_train,
 										   random_seed),
-			n_trials=200,
+			n_trials=OPTUNA_N_TRIALS,
 			show_progress_bar=True
 		)
 
