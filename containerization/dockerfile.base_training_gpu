@@ -34,8 +34,9 @@ COPY uv.lock .
 # Install core Python dependencies using uv
 RUN /root/.local/bin/uv sync --frozen --no-dev
 
-# Copy source code
+# Copy source code and config
 COPY src/ src/
+COPY config/ config/
 
 # Set Python path to use uv's virtual environment
 ENV PYTHONPATH=/app/.venv/lib/python3.12/site-packages:/app

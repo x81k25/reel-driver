@@ -38,7 +38,7 @@ jobs:
         if [[ "${{ github.event_name }}" == "pull_request" ]]; then
           echo "TAG=pr-${{ github.event.number }}" >> $GITHUB_ENV
         elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-          echo "TAG=latest" >> $GITHUB_ENV
+          echo "TAG=main" >> $GITHUB_ENV
         else
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
           echo "TAG=${BRANCH_NAME}" >> $GITHUB_ENV
