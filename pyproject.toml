@@ -19,7 +19,9 @@ dependencies = [
 
 [project.optional-dependencies]
 # /src/training/feature_engineering.py dependencies
-feature-engineering = []
+feature-engineering = [
+    "pyyaml>=6.0.0",
+]
 
 # /src/training/model_training.py dependencies
 model-training = [
