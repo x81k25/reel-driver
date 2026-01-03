@@ -209,7 +209,7 @@ def optuna_objective(
 		'random_state': random_seed,
 		'scale_pos_weight': trial.suggest_int('scale_pos_weight', 1, 15),
 		'max_depth': trial.suggest_int('max_depth', 3, 7),
-		'n_estimators': trial.suggest_int('n_estimators', 50, XGBOOST_N_ESTIMATORS_MAX, step=25),
+		'n_estimators': trial.suggest_int('n_estimators', min(50, XGBOOST_N_ESTIMATORS_MAX), XGBOOST_N_ESTIMATORS_MAX),
 		'min_child_weight': trial.suggest_int('min_child_weight', 1, 5),
 		'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.2,
 											 log=True),
