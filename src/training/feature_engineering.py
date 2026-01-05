@@ -180,6 +180,8 @@ def filter_training(training: pl.DataFrame) -> pl.DataFrame:
                 'original_language',
                 'spoken_languages',
                 'genre',
+                # flags
+                'anomalous',
             ])
     )
 
