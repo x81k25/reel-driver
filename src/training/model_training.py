@@ -448,9 +448,22 @@ def xgb_hyp_op(
 	)
 	pdf = prep_engineered(df=df)
 
-	# split
+	# separate anomalous records from training data
+	# anomalous records are excluded from training but included in final predictions
+	if 'anomalous' in pdf.columns:
+		anomalous_mask = pdf['anomalous'].fillna(False).astype(bool)
+		pdf_train = pdf[~anomalous_mask].drop(columns=['anomalous'])
+		pdf_all = pdf.drop(columns=['anomalous'])
+		logger.info(f"filtered {anomalous_mask.sum()} anomalous records from training")
+		logger.info(f"training on {len(pdf_train)} records, predicting on {len(pdf_all)} records")
+	else:
+		pdf_train = pdf
+		pdf_all = pdf
+		logger.info("no anomalous column found, using all records for training")
+
+	# split (using non-anomalous data only)
 	X, X_train, X_test, y, y_train, y_test = data_split(
-		pdf=pdf,
+		pdf=pdf_train,
 		split_size=0.2,
 		random_state=random_seed
 	)
@@ -520,19 +533,23 @@ def xgb_hyp_op(
 		# log tree visualizations for Streamlit display
 		log_tree_visualizations(model=full_model, num_trees=5)
 
-		# run predictions on full data set
-		y_pred = full_model.predict(X)
-		y_pred_proba = full_model.predict_proba(X)
+		# prepare full dataset (including anomalous) for predictions
+		X_all = pdf_all.drop('label', axis=1)
+		y_all = pdf_all['label']
+
+		# run predictions on full data set (including anomalous records)
+		y_pred = full_model.predict(X_all)
+		y_pred_proba = full_model.predict_proba(X_all)
 
 		# create model signature
-		if len(X) < 1000:
+		if len(X_all) < 1000:
 			signature = infer_signature(
-				X,
+				X_all,
 				y_pred
 			)
 		else:
 			signature = infer_signature(
-				X.head(1000),
+				X_all.head(1000),
 				y_pred[:1000]
 			)
 
@@ -552,7 +569,7 @@ def xgb_hyp_op(
 			normalization_table.to_pandas().to_dict(orient='records'),
 			"engineered_normalization_table.json"
 		)
-		
+
 		mlflow.log_dict(
 			engineered_schema.to_pandas().to_dict(orient='records'),
 			"engineered_schema.json"
@@ -562,10 +579,10 @@ def xgb_hyp_op(
 
 		# create atp.prediction dataframe
 		prediction = pl.DataFrame({
-			'imdb_id': X.index,
+			'imdb_id': X_all.index,
 			'prediction': y_pred,
 			'probability': y_pred_proba[:, 1],
-			'actual': y
+			'actual': y_all
 		}).with_columns(
 			cm_value = pl.when(pl.col('prediction') == 1)
 				.then(
