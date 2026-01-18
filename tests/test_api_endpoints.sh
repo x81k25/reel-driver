@@ -30,8 +30,13 @@ case $ENV in
         HOST="localhost"
         PORT="30800"
         ;;
+    "ci")
+        # CI mode: uses SERVICE_HOST/SERVICE_PORT env vars or defaults to cluster-internal service
+        HOST="${SERVICE_HOST:-reel-driver-dev.ai-ml.svc.cluster.local}"
+        PORT="${SERVICE_PORT:-8000}"
+        ;;
     *)
-        echo -e "${RED}ERROR: Invalid environment. Use dev, stg, or prod${NC}"
+        echo -e "${RED}ERROR: Invalid environment. Use dev, stg, prod, or ci${NC}"
         exit 1
         ;;
 esac
