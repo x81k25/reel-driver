@@ -130,20 +130,17 @@ build-model-training-gpu:
       --destination "${MODEL_TRAINING_GPU}:${CI_COMMIT_REF_NAME}"
       --destination "${MODEL_TRAINING_GPU}:sha-${CI_COMMIT_SHORT_SHA}"
 
-# Deploy to dev and run e2e tests, rollback on failure
-deploy-test-dev:
+# Deploy-test template
+.deploy-test:
   stage: deploy-test
   tags:
     - k8s
     - docker
   image: alpine/k8s:1.28.3
-  resource_group: reel-driver-dev  # Prevents concurrent deployments
   needs:
     - build-api
   variables:
     NAMESPACE: "ai-ml"
-    DEPLOYMENT: "reel-driver-dev"
-    SERVICE_HOST: "reel-driver-dev.ai-ml.svc.cluster.local"
     SERVICE_PORT: "8000"
   before_script:
     - apk add --no-cache bash jq
@@ -182,5 +179,33 @@ deploy-test-dev:
         exit 1
       fi
       echo "All tests passed!"
+
+# Deploy to dev and run e2e tests, rollback on failure
+deploy-test-dev:
+  extends: .deploy-test
+  resource_group: reel-driver-dev
+  variables:
+    DEPLOYMENT: "reel-driver-dev"
+    SERVICE_HOST: "reel-driver-dev.ai-ml.svc.cluster.local"
   rules:
     - if: $CI_COMMIT_BRANCH == "dev"
+
+# Deploy to stg and run e2e tests, rollback on failure
+deploy-test-stg:
+  extends: .deploy-test
+  resource_group: reel-driver-stg
+  variables:
+    DEPLOYMENT: "reel-driver-stg"
+    SERVICE_HOST: "reel-driver-stg.ai-ml.svc.cluster.local"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "stg"
+
+# Deploy to prod and run e2e tests, rollback on failure
+deploy-test-prod:
+  extends: .deploy-test
+  resource_group: reel-driver-prod
+  variables:
+    DEPLOYMENT: "reel-driver-prod"
+    SERVICE_HOST: "reel-driver-prod.ai-ml.svc.cluster.local"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
