@@ -2,7 +2,7 @@
 
 # Reel Driver API Endpoint Test Script
 # Tests all API endpoints with verbose output
-# Usage: ./test_api_endpoints.sh [dev|stg|prod]
+# Usage: ./test_api_endpoints.sh [dev|prod]
 # Default: dev
 
 set -e
@@ -22,10 +22,6 @@ case $ENV in
         HOST="localhost"
         PORT="30802"
         ;;
-    "stg")
-        HOST="localhost"
-        PORT="30801"
-        ;;
     "prod")
         HOST="localhost"
         PORT="30800"
@@ -36,7 +32,7 @@ case $ENV in
         PORT="${SERVICE_PORT:-8000}"
         ;;
     *)
-        echo -e "${RED}ERROR: Invalid environment. Use dev, stg, prod, or ci${NC}"
+        echo -e "${RED}ERROR: Invalid environment. Use dev, prod, or ci${NC}"
         exit 1
         ;;
 esac

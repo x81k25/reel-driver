@@ -1,7 +1,7 @@
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH =~ /^(dev|stg|main)$/
+    - if: $CI_COMMIT_BRANCH =~ /^(dev|main)$/
 
 stages:
   - test
@@ -38,7 +38,7 @@ test:
     - mkdir -p /kaniko/.docker
     - echo "{\"auths\":{\"${CI_REGISTRY}\":{\"auth\":\"$(printf "%s:%s" "${CI_REGISTRY_USER}" "${CI_REGISTRY_PASSWORD}" | base64 | tr -d '\n')\"}}}" > /kaniko/.docker/config.json
   rules:
-    - if: $CI_COMMIT_BRANCH =~ /^(dev|stg|main)$/
+    - if: $CI_COMMIT_BRANCH =~ /^(dev|main)$/
 
 # API image build
 build-api:
@@ -110,16 +110,6 @@ deploy-test-dev:
     SERVICE_HOST: "reel-driver-dev.ai-ml.svc.cluster.local"
   rules:
     - if: $CI_COMMIT_BRANCH == "dev"
-
-# Deploy to stg and run e2e tests, rollback on failure
-deploy-test-stg:
-  extends: .deploy-test
-  resource_group: reel-driver-stg
-  variables:
-    DEPLOYMENT: "reel-driver-stg"
-    SERVICE_HOST: "reel-driver-stg.ai-ml.svc.cluster.local"
-  rules:
-    - if: $CI_COMMIT_BRANCH == "stg"
 
 # Deploy to prod and run e2e tests, rollback on failure
 deploy-test-prod:
